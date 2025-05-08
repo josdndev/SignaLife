@@ -51,7 +51,7 @@ import HorizontaLDots from "./horizontal-dots.svg";
 import ChatIcon from "./chat.svg";
 import MoreDotIcon from "./more-dot.svg";
 import BellIcon from "./bell.svg";
-
+import Bed from "./bed.svg"
 export {
   DownloadIcon,
   BellIcon,
@@ -105,5 +105,5 @@ export {
   MailIcon,
   HorizontaLDots,
   ChevronUpIcon,
-  ChatIcon,
+  ChatIcon,Bed
 };

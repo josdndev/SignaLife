@@ -2,6 +2,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+* {
+  box-sizing: border-box;
+}
+
 @theme {
   --font-*: initial;
   --font-outfit: Outfit, sans-serif;
@@ -738,3 +742,29 @@ span.flatpickr-weekday,
   opacity: 0.8;
   cursor: grabbing; /* Changes the cursor to indicate dragging */
 }
+
+/* Estilos actualizados para sliders más pequeños */
+.rc-slider {
+  height: 20px; /* Altura más pequeña */
+  padding: 5px; /* Reducir el padding */
+}
+
+.rc-slider-track {
+  height: 3px; /* Altura más pequeña para la pista */
+}
+
+.rc-slider-handle {
+  width: 12px; /* Tamaño más pequeño */
+  height: 12px; /* Tamaño más pequeño */
+  margin-top: -4px; /* Ajustar posición */
+}
+
+.rc-slider-mark {
+  font-size: 10px; /* Texto más pequeño */
+}
+
+.rc-slider-mark-text {
+  font-size: 10px; /* Texto más pequeño */
+}
+
+
