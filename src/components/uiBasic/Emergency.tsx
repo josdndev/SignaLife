@@ -6,6 +6,7 @@ import Pagination from "../tables/Pagination";
 import Slider from "rc-slider";
 import "rc-slider/assets/index.css";
 import { Collapse } from "react-collapse";
+import { getPacientes, getVisitas, getDoctores, getDiagnosticos } from "@/functions/api";
 
 const Emergency = () => {
   // Estado para manejar el modal
@@ -21,6 +22,8 @@ const Emergency = () => {
   const [selectedStatus, setSelectedStatus] = useState("");
   const [isCollapseOpen, setIsCollapseOpen] = useState(false);
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [apiPatients, setApiPatients] = useState([]);
 
   const toggleCollapse = () => {
     setIsCollapseOpen(!isCollapseOpen);
@@ -39,132 +42,57 @@ const Emergency = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Datos de prueba
-  const patients = [
-    {
-      id: 1,
-      name: "Juan Pérez",
-      status: "Rojo",
-      idNumber: "12345678",
-      age: 45,
-      report: "Informe detallado del paciente Juan Pérez.",
-      time: "08:30 AM",
-      doctor: "Dr. Carlos García",
-      specialty: "Cardiología",
-    },
-    {
-      id: 2,
-      name: "María López",
-      status: "Naranja",
-      idNumber: "87654321",
-      age: 32,
-      report: "Informe detallado del paciente María López.",
-      time: "09:15 AM",
-      doctor: "Dra. Ana Torres",
-      specialty: "Pediatría",
-    },
-    {
-      id: 3,
-      name: "Carlos García",
-      status: "Amarillo",
-      idNumber: "11223344",
-      age: 60,
-      report: "Informe detallado del paciente Carlos García.",
-      time: "10:00 AM",
-      doctor: "Dr. Luis Gómez",
-      specialty: "Traumatología",
-    },
-    {
-      id: 4,
-      name: "Ana Torres",
-      status: "Verde",
-      idNumber: "44556677",
-      age: 28,
-      report: "Informe detallado del paciente Ana Torres.",
-      time: "10:45 AM",
-      doctor: "Dra. María López",
-      specialty: "Dermatología",
-    },
-    {
-      id: 5,
-      name: "Luis Gómez",
-      status: "Azul",
-      idNumber: "99887766",
-      age: 50,
-      report: "Informe detallado del paciente Luis Gómez.",
-      time: "11:30 AM",
-      doctor: "Dr. Juan Pérez",
-      specialty: "Neurología",
-    },
-    {
-      id: 6,
-      name: "Pedro Martínez",
-      status: "Rojo",
-      idNumber: "22334455",
-      age: 40,
-      report: "Informe detallado del paciente Pedro Martínez.",
-      time: "12:15 PM",
-      doctor: "Dr. José Fernández",
-      specialty: "Oncología",
-    },
-    {
-      id: 7,
-      name: "Lucía Gómez",
-      status: "Naranja",
-      idNumber: "33445566",
-      age: 35,
-      report: "Informe detallado del paciente Lucía Gómez.",
-      time: "01:00 PM",
-      doctor: "Dra. Laura Sánchez",
-      specialty: "Ginecología",
-    },
-    {
-      id: 8,
-      name: "Miguel Torres",
-      status: "Amarillo",
-      idNumber: "44556677",
-      age: 50,
-      report: "Informe detallado del paciente Miguel Torres.",
-      time: "02:30 PM",
-      doctor: "Dr. Andrés López",
-      specialty: "Urología",
-    },
-    {
-      id: 9,
-      name: "Sofía Ramírez",
-      status: "Verde",
-      idNumber: "55667788",
-      age: 29,
-      report: "Informe detallado del paciente Sofía Ramírez.",
-      time: "03:45 PM",
-      doctor: "Dra. Paula Martínez",
-      specialty: "Pediatría",
-    },
-    {
-      id: 10,
-      name: "Javier Hernández",
-      status: "Azul",
-      idNumber: "66778899",
-      age: 60,
-      report: "Informe detallado del paciente Javier Hernández.",
-      time: "04:15 PM",
-      doctor: "Dr. Manuel García",
-      specialty: "Geriatría",
-    },
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [pacientes, visitas, doctores, diagnosticos] = await Promise.all([
+          getPacientes(),
+          getVisitas(),
+          getDoctores(),
+          getDiagnosticos(),
+        ]);
+        // Unir los datos relevantes para la tabla de emergencia
+        const patientsData = visitas.map((visita) => {
+          const paciente = pacientes.find((p) => p.id === visita.historia_id || p.id === visita.paciente_id);
+          const doctor = doctores.find((d) => d.especialidad === visita.especialidad);
+          const diagnostico = diagnosticos.find((d) => d.visita_id === visita.id);
+          return {
+            id: visita.id,
+            name: paciente?.nombre || "-",
+            idNumber: paciente?.cedula || "-",
+            age: paciente?.edad || "-",
+            status: visita.evaluacion_triaje || "-",
+            time: visita.hora_entrada || "-",
+            doctor: doctor?.nombre || visita.especialidad,
+            specialty: visita.especialidad,
+            report: diagnostico?.informe_prediagnostico || "-",
+            diagnostico: diagnostico?.diagnostico || "-",
+          };
+        });
+        setApiPatients(patientsData);
+        setFilteredPatients(patientsData);
+      } catch (e) {
+        setApiPatients([]);
+        setFilteredPatients([]);
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, []);
 
   // Filtrar pacientes por cédula
   useEffect(() => {
     if (searchQuery) {
       setFilteredPatients(
-        patients.filter((patient) =>
+        apiPatients.filter((patient) =>
           patient.idNumber.includes(searchQuery.trim())
         )
       );
     } else {
-      setFilteredPatients(patients);
+      setFilteredPatients(apiPatients);
     }
-  }, [searchQuery]);
+  }, [searchQuery, apiPatients]);
 
   // Función para abrir el modal
   const openModal = (patient) => {

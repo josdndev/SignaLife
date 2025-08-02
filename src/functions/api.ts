@@ -105,7 +105,8 @@ export interface Diagnostico {
 
 // Doctores
 export const getDoctores = async (): Promise<Doctor[]> => {
-  return apiRequest<Doctor[]>('/doctores/', {}, true);
+  const data = await apiRequest<{ doctores: Doctor[] }>('/doctores/', {}, false);
+  return data.doctores;
 };
 
 export const createDoctor = async (doctor: Omit<Doctor, 'id'>): Promise<Doctor> => {
@@ -123,7 +124,8 @@ export const createDoctor = async (doctor: Omit<Doctor, 'id'>): Promise<Doctor> 
 
 // Pacientes
 export const getPacientes = async (): Promise<Paciente[]> => {
-  return apiRequest<Paciente[]>('/pacientes/', {}, true);
+  const data = await apiRequest<{ pacientes: Paciente[] }>('/pacientes/', {}, false);
+  return data.pacientes;
 };
 
 export const createPaciente = async (paciente: Omit<Paciente, 'id'>): Promise<Paciente> => {
@@ -149,7 +151,10 @@ const apiRequest = async <T>(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    // Asegurar que la URL esté correctamente formada
+    const url = endpoint.startsWith('/') ? `${API_BASE_URL}${endpoint}` : `${API_BASE_URL}/${endpoint}`;
+    
+    const response = await fetch(url, {
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
       ...options
@@ -185,7 +190,8 @@ const apiRequest = async <T>(
 
 // Historias Clínicas
 export const getHistorias = async (): Promise<HistoriaClinica[]> => {
-  return apiRequest<HistoriaClinica[]>('/historias/', {}, true);
+  const data = await apiRequest<{ historias: HistoriaClinica[] }>('/historias/', {}, false);
+  return data.historias;
 };
 
 export const createHistoria = async (historia: Omit<HistoriaClinica, 'id'>): Promise<HistoriaClinica> => {
@@ -197,7 +203,8 @@ export const createHistoria = async (historia: Omit<HistoriaClinica, 'id'>): Pro
 
 // Visitas
 export const getVisitas = async (): Promise<Visita[]> => {
-  return apiRequest<Visita[]>('/visitas/', {}, true);
+  const data = await apiRequest<{ visitas: Visita[] }>('/visitas/', {}, false);
+  return data.visitas;
 };
 
 export const createVisita = async (visita: Omit<Visita, 'id'>): Promise<Visita> => {
@@ -209,7 +216,8 @@ export const createVisita = async (visita: Omit<Visita, 'id'>): Promise<Visita> 
 
 // Diagnósticos
 export const getDiagnosticos = async (): Promise<Diagnostico[]> => {
-  return apiRequest<Diagnostico[]>('/diagnosticos/', {}, true);
+  const data = await apiRequest<{ diagnosticos: Diagnostico[] }>('/diagnosticos/', {}, false);
+  return data.diagnosticos;
 };
 
 export const createDiagnostico = async (diagnostico: Omit<Diagnostico, 'id'>): Promise<Diagnostico> => {

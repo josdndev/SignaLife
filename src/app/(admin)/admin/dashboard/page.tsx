@@ -1,3 +1,5 @@
+"use client";
+
 import DoctoresList from '@/components/admin/DoctoresList';
 import PacientesList from '@/components/admin/PacientesList';
 import VisitasList from '@/components/admin/VisitasList';

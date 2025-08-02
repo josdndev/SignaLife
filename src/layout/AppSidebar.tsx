@@ -23,30 +23,52 @@ const navItems: NavItem[] = [
   {
     icon: <GridIcon />,
     name: "Registro",
-    path:"/registro",
+    path: "/registro",
     subItems: [
-      {name: "Emergencia", path:"/registro/emergencia", pro: false },
-      {name: "Consulta", path:"/registro/consultas", pro: false}
+      { name: "Emergencia", path: "/registro/emergencia" },
+      { name: "Consulta", path: "/registro/consultas" },
     ],
   },
   {
     icon: <GroupIcon />,
     name: "Pacientes",
     path: "/pacientes",
-    subItems:[
-      
-      {name: "Habitaciones", path:"/pacientes/habitaciones", pro: false },
-      {name: "Emergencia", path:"/pacientes/emergency", pro: false}, 
-      {name: "Consultas", path:"/pacientes/consulta", pro: false}, 
-      
-    
-    
-    ]
+    subItems: [
+      { name: "Listado", path: "/pacientes/listado" },
+      { name: "Habitaciones", path: "/pacientes/habitaciones" },
+      { name: "Emergencia", path: "/pacientes/emergencia" },
+      { name: "Consultas", path: "/pacientes/consultas" },
+    ],
+  },
+  {
+    icon: <GroupIcon />,
+    name: "Doctores",
+    path: "/doctores",
+    subItems: [
+      { name: "Listado", path: "/doctores/listado" },
+      { name: "Especialidades", path: "/doctores/especialidades" },
+    ],
+  },
+  {
+    icon: <GridIcon />,
+    name: "Historias Clínicas",
+    path: "/historias",
+    subItems: [
+      { name: "Todas", path: "/historias/todas" },
+    ],
+  },
+  {
+    icon: <GridIcon />,
+    name: "Diagnósticos",
+    path: "/diagnosticos",
+    subItems: [
+      { name: "Listado", path: "/diagnosticos/listado" },
+    ],
   },
   {
     icon: <ChatIcon />,
     name: "Asistente",
-    path: "/Asistente",
+    path: "/asistente",
   },
 ];
 

@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { DropdownItem } from "@/components/ui/dropdown/DropdownItem";
 import { Line } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from "chart.js";
+import { getPacientes, getVisitas } from "@/functions/api";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -54,6 +55,50 @@ const Camas = () => {
       ],
     }))
   );
+
+  const [loading, setLoading] = useState(true);
+  const [apiRooms, setApiRooms] = useState([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const pacientes = await getPacientes();
+        const visitas = await getVisitas();
+        // Simular habitaciones: cada visita es una cama, agrupadas por piso (por ejemplo, cada 5 visitas un piso)
+        const roomsData = [];
+        let roomId = 1;
+        let floor = 1;
+        for (let i = 0; i < visitas.length; i += 5) {
+          const room = {
+            id: roomId++,
+            floor: floor++,
+            name: `Habitación ${roomId}`,
+            patients: visitas.slice(i, i + 5).map((visita, idx) => {
+              const paciente = pacientes.find((p) => p.id === visita.historia_id || p.id === visita.paciente_id);
+              return {
+                bed: `Cama ${idx + 1}`,
+                name: paciente?.nombre || "-",
+                idNumber: paciente?.cedula || "-",
+                priority: visita.evaluacion_triaje || "-",
+                hospitalizedTime: visita.hora_entrada || "-",
+              };
+            }),
+          };
+          roomsData.push(room);
+        }
+        setApiRooms(roomsData);
+        setRooms(roomsData);
+        setFloors(Array.from(new Set(roomsData.map((room) => room.floor))));
+      } catch (e) {
+        setApiRooms([]);
+        setRooms([]);
+        setFloors([]);
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, []);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -311,107 +356,111 @@ const Camas = () => {
       >
         Agregar Piso
       </button>
-      {floors.map((floor) => (
-        <div
-          key={floor}
-          className="mb-6"
-          onContextMenu={(e) => handleContextMenu(e, "floor", floor)}
-        >
-          <DropdownItem
-            tag="button"
-            onClick={() => toggleFloor(floor)}
-            baseClassName="block w-full text-left px-4 py-2 text-lg font-bold text-white border-b border-gray-300 hover:bg-blue-700 transition-all duration-300"
+      {loading ? (
+        <p>Cargando datos...</p>
+      ) : (
+        floors.map((floor) => (
+          <div
+            key={floor}
+            className="mb-6"
+            onContextMenu={(e) => handleContextMenu(e, "floor", floor)}
           >
-            Piso {floor}
-          </DropdownItem>
-          {expandedFloor === floor && (
-            <div className="flex flex-col gap-4 mt-2">
-              {rooms
-                .filter((room) => room.floor === floor)
-                .map((room) => (
-                  <div
-                    key={room.id}
-                    className="border-b-1 ml-6"
-                    onContextMenu={(e) => handleContextMenu(e, "room", room.id)}
-                  >
-                    <DropdownItem
-                      tag="button"
-                      onClick={() => toggleRoom(room.id)}
-                      baseClassName="block w-full text-left pt-2 text-lg font-bold text-white border-b items-center flex border-gray-300 hover:bg-blue-700 transition-all duration-300"
+            <DropdownItem
+              tag="button"
+              onClick={() => toggleFloor(floor)}
+              baseClassName="block w-full text-left px-4 py-2 text-lg font-bold text-white border-b border-gray-300 hover:bg-blue-700 transition-all duration-300"
+            >
+              Piso {floor}
+            </DropdownItem>
+            {expandedFloor === floor && (
+              <div className="flex flex-col gap-4 mt-2">
+                {rooms
+                  .filter((room) => room.floor === floor)
+                  .map((room) => (
+                    <div
+                      key={room.id}
+                      className="border-b-1 ml-6"
+                      onContextMenu={(e) => handleContextMenu(e, "room", room.id)}
                     >
-                      {room.name}
-                      <div className="flex">
-                        {room.patients.map((patient, i) => (
-                          <div
-                            key={i}
-                            className={`w-4 h-4 m-1 rounded-full ${getPriorityColor(
-                              patient.priority
-                            )}`}
-                          ></div>
-                        ))}
-                      </div>
-                    </DropdownItem>
-                    {expandedRoom === room.id && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full border-collapse box-border">
-                          <thead>
-                            <tr className="text-gray-200 bg-gray-800 bg-opacity-20">
-                              <th className="px-4 py-2 text-left">Cama</th>
-                              <th className="text-xl font-bold px-4 py-2 text-left">
-                                Nombre
-                              </th>
-                              <th className="text-xl font-bold px-4 py-2 text-left">
-                                Cédula
-                              </th>
-                              <th className="text-xl font-bold px-4 py-2 text-left">
-                                Tiempo Hospitalizado
-                              </th>
-                              <th className="px-4 py-2 text-left">Monitoreo</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {room.patients.map((patient, i) => (
-                              <tr
-                                key={i}
-                                onContextMenu={(e) =>
-                                  handleContextMenu(e, "bed", { roomId: room.id, bedIndex: i })
-                                }
-                                className={`hover:opacity-90 transition-all duration-300 ${getPriorityColor(
-                                  patient.priority
-                                )}`}
-                              >
-                                <td className="px-4 py-2">{patient.bed}</td>
-                                <td className="px-4 py-2">
-                                  {patient.name || "Vacío"}
-                                </td>
-                                <td className="px-4 py-2">
-                                  {patient.idNumber || "N/A"}
-                                </td>
-                                <td className="px-4 py-2">
-                                  {patient.hospitalizedTime || "N/A"}
-                                </td>
-                                <td className="px-4 py-2">
-                                  {patient.name && (
-                                    <button
-                                      className="px-4 py-2 bg-blue-700 text-white rounded hover:bg-blue-900"
-                                      onClick={() => openMonitoring(patient)}
-                                    >
-                                      Monitoreo
-                                    </button>
-                                  )}
-                                </td>
+                      <DropdownItem
+                        tag="button"
+                        onClick={() => toggleRoom(room.id)}
+                        baseClassName="block w-full text-left pt-2 text-lg font-bold text-white border-b items-center flex border-gray-300 hover:bg-blue-700 transition-all duration-300"
+                      >
+                        {room.name}
+                        <div className="flex">
+                          {room.patients.map((patient, i) => (
+                            <div
+                              key={i}
+                              className={`w-4 h-4 m-1 rounded-full ${getPriorityColor(
+                                patient.priority
+                              )}`}
+                            ></div>
+                          ))}
+                        </div>
+                      </DropdownItem>
+                      {expandedRoom === room.id && (
+                        <div className="overflow-x-auto">
+                          <table className="w-full border-collapse box-border">
+                            <thead>
+                              <tr className="text-gray-200 bg-gray-800 bg-opacity-20">
+                                <th className="px-4 py-2 text-left">Cama</th>
+                                <th className="text-xl font-bold px-4 py-2 text-left">
+                                  Nombre
+                                </th>
+                                <th className="text-xl font-bold px-4 py-2 text-left">
+                                  Cédula
+                                </th>
+                                <th className="text-xl font-bold px-4 py-2 text-left">
+                                  Tiempo Hospitalizado
+                                </th>
+                                <th className="px-4 py-2 text-left">Monitoreo</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                ))}
-            </div>
-          )}
-        </div>
-      ))}
+                            </thead>
+                            <tbody>
+                              {room.patients.map((patient, i) => (
+                                <tr
+                                  key={i}
+                                  onContextMenu={(e) =>
+                                    handleContextMenu(e, "bed", { roomId: room.id, bedIndex: i })
+                                  }
+                                  className={`hover:opacity-90 transition-all duration-300 ${getPriorityColor(
+                                    patient.priority
+                                  )}`}
+                                >
+                                  <td className="px-4 py-2">{patient.bed}</td>
+                                  <td className="px-4 py-2">
+                                    {patient.name || "Vacío"}
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    {patient.idNumber || "N/A"}
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    {patient.hospitalizedTime || "N/A"}
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    {patient.name && (
+                                      <button
+                                        className="px-4 py-2 bg-blue-700 text-white rounded hover:bg-blue-900"
+                                        onClick={() => openMonitoring(patient)}
+                                      >
+                                        Monitoreo
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        ))
+      )}
       {contextMenu.visible && (
         <div
           className="absolute bg-white shadow-lg rounded p-2"
