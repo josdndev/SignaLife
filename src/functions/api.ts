@@ -1,5 +1,5 @@
 // Configuración de la API de SignaApi
-const API_BASE_URL = 'https://signaapiv1-production.up.railway.app'; // URL de producción en Railway
+const API_BASE_URL = 'https://signaapiv1.onrender.com/'; // URL de producción en Railway
 
 // Función para manejar errores de red
 const handleNetworkError = (error: any): string => {
