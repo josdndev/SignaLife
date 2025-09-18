@@ -25,8 +25,8 @@ const navItems: NavItem[] = [
     name: "Registro",
     path: "/registro",
     subItems: [
-      { name: "Emergencia", path: "/registro/emergencia" },
-      { name: "Consulta", path: "/registro/consultas" },
+      { name: "Emergencia", path: "" },
+      { name: "Consultas", path: "/registro/consultas" },
     ],
   },
   {
@@ -44,32 +44,20 @@ const navItems: NavItem[] = [
     icon: <GroupIcon />,
     name: "Doctores",
     path: "/doctores",
-    subItems: [
-      { name: "Listado", path: "/doctores/listado" },
-      { name: "Especialidades", path: "/doctores/especialidades" },
-    ],
   },
   {
     icon: <GridIcon />,
     name: "Historias Clínicas",
     path: "/historias",
-    subItems: [
-      { name: "Todas", path: "/historias/todas" },
-    ],
+
   },
   {
     icon: <GridIcon />,
     name: "Diagnósticos",
     path: "/diagnosticos",
-    subItems: [
-      { name: "Listado", path: "/diagnosticos/listado" },
-    ],
+
   },
-  {
-    icon: <ChatIcon />,
-    name: "Asistente",
-    path: "/asistente",
-  },
+  // Asistente eliminado porque no hay ruta /asistente definida aún
 ];
 
 const AppSidebar: React.FC = () => {
@@ -218,7 +206,34 @@ const AppSidebar: React.FC = () => {
   );
   const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const isActive = useCallback((path: string) => path === pathname, [pathname]);
+  const isActive = useCallback(
+    (path: string) => {
+      if (!pathname) return false;
+      if (path === "/") return pathname === "/";
+      return pathname === path || pathname.startsWith(path + "/");
+    },
+    [pathname]
+  );
+
+  // Abre automáticamente el submenú cuyo path coincide con la ruta actual
+  useEffect(() => {
+    for (let i = 0; i < navItems.length; i++) {
+      const nav = navItems[i];
+      if (
+        nav.subItems?.some(
+          (si) => pathname === si.path || pathname.startsWith(si.path + "/")
+        )
+      ) {
+        setOpenSubmenu({ type: "main", index: i });
+        const key = `main-${i}`;
+        const el = subMenuRefs.current[key];
+        if (el) {
+          setSubMenuHeight((prev) => ({ ...prev, [key]: el.scrollHeight }));
+        }
+        break;
+      }
+    }
+  }, [pathname]);
 
   return (
     <aside

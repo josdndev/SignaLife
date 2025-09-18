@@ -8,56 +8,37 @@ import { getPacientes, getVisitas } from "@/functions/api";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
-const Camas = () => {
-  const [expandedRoom, setExpandedRoom] = useState(null); // Solo una habitación expandida
-  const [expandedFloor, setExpandedFloor] = useState(null); // Solo un piso expandido
-  const [rooms, setRooms] = useState(
-    Array.from({ length: 10 }, (_, i) => ({
-      id: i + 1,
-      floor: Math.floor(i / 5) + 1, // Agrupar habitaciones por piso (5 habitaciones por piso)
-      name: `Habitación ${i + 1}`,
-      patients: [
-        {
-          bed: `Cama ${i * 5 + 1}`,
-          name: "Juan Pérez",
-          idNumber: "12345678",
-          priority: "Rojo",
-          hospitalizedTime: "3 días",
-        },
-        {
-          bed: `Cama ${i * 5 + 2}`,
-          name: "María López",
-          idNumber: "87654321",
-          priority: "Naranja",
-          hospitalizedTime: "1 día",
-        },
-        {
-          bed: `Cama ${i * 5 + 3}`,
-          name: null, // Cama vacía
-          idNumber: null,
-          priority: null,
-          hospitalizedTime: null,
-        },
-        {
-          bed: `Cama ${i * 5 + 4}`,
-          name: "Ana Torres",
-          idNumber: "78912345",
-          priority: "Amarillo",
-          hospitalizedTime: "2 días",
-        },
-        {
-          bed: `Cama ${i * 5 + 5}`,
-          name: null, // Cama vacía
-          idNumber: null,
-          priority: null,
-          hospitalizedTime: null,
-        },
-      ],
-    }))
-  );
+interface Patient {
+  bed: string;
+  name: string | null;
+  idNumber: string | null;
+  priority: string | null;
+  hospitalizedTime: string | null;
+  visitaId?: number;
+  pacienteId?: number | null;
+}
 
+interface Room {
+  id: number;
+  name: string;
+  patients: Patient[];
+}
+
+interface SelectedPatient {
+  roomId: number;
+  bedIndex: number;
+}
+
+const Camas = () => {
+  const [expandedRoom, setExpandedRoom] = useState<number | null>(null);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
-  const [apiRooms, setApiRooms] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<SelectedPatient | null>(null);
+  const [monitoringPatient, setMonitoringPatient] = useState<Patient | null>(null);
+  const [renaming, setRenaming] = useState({ type: null as string | null, id: null as number | null, name: "" });
+  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, type: null as string | null, id: null as number | { roomId: number; bedIndex: number } | null });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -65,57 +46,53 @@ const Camas = () => {
       try {
         const pacientes = await getPacientes();
         const visitas = await getVisitas();
-        // Simular habitaciones: cada visita es una cama, agrupadas por piso (por ejemplo, cada 5 visitas un piso)
-        const roomsData = [];
+        
+        // Create rooms from API data - each room has 5 beds
+        const roomsData: Room[] = [];
         let roomId = 1;
-        let floor = 1;
+        
         for (let i = 0; i < visitas.length; i += 5) {
-          const room = {
+          const room: Room = {
             id: roomId++,
-            floor: floor++,
             name: `Habitación ${roomId}`,
             patients: visitas.slice(i, i + 5).map((visita, idx) => {
-              const paciente = pacientes.find((p) => p.id === visita.historia_id || p.id === visita.paciente_id);
+              const paciente = pacientes.find((p) => p.id === visita.historia_id);
               return {
                 bed: `Cama ${idx + 1}`,
-                name: paciente?.nombre || "-",
-                idNumber: paciente?.cedula || "-",
-                priority: visita.evaluacion_triaje || "-",
-                hospitalizedTime: visita.hora_entrada || "-",
+                name: paciente?.nombre || null,
+                idNumber: paciente?.cedula || null,
+                priority: visita.evaluacion_triaje || null,
+                hospitalizedTime: visita.hora_entrada || null,
+                visitaId: visita.id,
+                pacienteId: paciente?.id || null,
               };
             }),
           };
           roomsData.push(room);
         }
-        setApiRooms(roomsData);
+        
         setRooms(roomsData);
-        setFloors(Array.from(new Set(roomsData.map((room) => room.floor))));
       } catch (e) {
-        setApiRooms([]);
+        console.error("Error fetching data:", e);
         setRooms([]);
-        setFloors([]);
       }
       setLoading(false);
     };
     fetchData();
   }, []);
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [monitoringPatient, setMonitoringPatient] = useState(null);
-  const [renaming, setRenaming] = useState({ type: null, id: null, name: "" });
-  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, type: null, id: null });
-  const [floors, setFloors] = useState(Array.from(new Set(rooms.map((room) => room.floor))));
-
-  const toggleRoom = (roomId) => {
-    setExpandedRoom((prev) => (prev === roomId ? null : roomId)); // Alternar entre expandir y colapsar habitaciones
+  const toggleRoom = (roomId: number) => {
+    setExpandedRoom((prev) => (prev === roomId ? null : roomId));
   };
 
-  const toggleFloor = (floorId) => {
-    setExpandedFloor((prev) => (prev === floorId ? null : floorId)); // Alternar entre expandir y colapsar pisos
-  };
+  // Filter rooms based on search term (patient ID number)
+  const filteredRooms = rooms.filter(room => 
+    room.patients.some(patient => 
+      patient.idNumber && patient.idNumber.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  );
 
-  const getPriorityColor = (priority) => {
+  const getPriorityColor = (priority: string | null) => {
     switch (priority) {
       case "Rojo":
         return "bg-red-500 text-white";
@@ -132,7 +109,7 @@ const Camas = () => {
     }
   };
 
-  const dischargePatient = (roomId, bedIndex) => {
+  const dischargePatient = (roomId: number, bedIndex: number) => {
     setRooms((prevRooms) =>
       prevRooms.map((room) =>
         room.id === roomId
@@ -155,7 +132,7 @@ const Camas = () => {
     );
   };
 
-  const deleteBed = (roomId, bedIndex) => {
+  const deleteBed = (roomId: number, bedIndex: number) => {
     setRooms((prevRooms) =>
       prevRooms.map((room) =>
         room.id === roomId
@@ -178,47 +155,40 @@ const Camas = () => {
     );
   };
 
-  const deleteRoom = (roomId) => {
+  const deleteRoom = (roomId: number) => {
     setRooms((prevRooms) => prevRooms.filter((room) => room.id !== roomId));
   };
 
-  const deleteFloor = (floorId) => {
-    setRooms((prevRooms) => prevRooms.filter((room) => room.floor !== floorId));
-    setFloors((prevFloors) => prevFloors.filter((floor) => floor !== floorId));
-  };
-
-  const renameEntity = (type, id, newName) => {
+  const renameEntity = (type: string, id: number, newName: string) => {
     if (type === "room") {
       setRooms((prevRooms) =>
         prevRooms.map((room) =>
           room.id === id ? { ...room, name: newName } : room
         )
       );
-    } else if (type === "floor") {
-      setRooms((prevRooms) =>
-        prevRooms.map((room) =>
-          room.floor === id ? { ...room, floorName: newName } : room
-        )
-      );
     }
   };
 
-  const openMoveModal = (roomId, bedIndex) => {
+  const openMoveModal = (roomId: number, bedIndex: number) => {
     const patientToMove = rooms
       .find((room) => room.id === roomId)
-      .patients[bedIndex];
+      ?.patients[bedIndex];
 
-    if (!patientToMove.name) return alert("No hay paciente para mover.");
+    if (!patientToMove?.name) return alert("No hay paciente para mover.");
 
     setSelectedPatient({ roomId, bedIndex });
     setModalVisible(true);
   };
 
-  const movePatientToBed = (targetRoomId, targetBedIndex) => {
+  const movePatientToBed = (targetRoomId: number, targetBedIndex: number) => {
+    if (!selectedPatient) return;
+    
     const { roomId, bedIndex } = selectedPatient;
     const patientToMove = rooms
       .find((room) => room.id === roomId)
-      .patients[bedIndex];
+      ?.patients[bedIndex];
+
+    if (!patientToMove) return;
 
     setRooms((prevRooms) =>
       prevRooms.map((room) => {
@@ -258,7 +228,7 @@ const Camas = () => {
     setSelectedPatient(null);
   };
 
-  const handleContextMenu = (e, type, id) => {
+  const handleContextMenu = (e: React.MouseEvent, type: string, id: number | { roomId: number; bedIndex: number }) => {
     e.preventDefault();
     setContextMenu({ visible: true, x: e.pageX, y: e.pageY, type, id });
   };
@@ -267,18 +237,12 @@ const Camas = () => {
     setContextMenu({ visible: false, x: 0, y: 0, type: null, id: null });
   };
 
-  const addFloor = () => {
-    const newFloor = floors.length + 1;
-    setFloors((prevFloors) => [...prevFloors, newFloor]);
-  };
-
-  const addRoom = (floorId) => {
+  const addRoom = () => {
     const newRoomId = rooms.length + 1;
     setRooms((prevRooms) => [
       ...prevRooms,
       {
         id: newRoomId,
-        floor: floorId,
         name: `Habitación ${newRoomId}`,
         patients: Array.from({ length: 5 }, (_, i) => ({
           bed: `Cama ${i + 1}`,
@@ -291,7 +255,7 @@ const Camas = () => {
     ]);
   };
 
-  const addBed = (roomId) => {
+  const addBed = (roomId: number) => {
     setRooms((prevRooms) =>
       prevRooms.map((room) =>
         room.id === roomId
@@ -313,7 +277,7 @@ const Camas = () => {
     );
   };
 
-  const openMonitoring = (patient) => {
+  const openMonitoring = (patient: Patient) => {
     setMonitoringPatient(patient);
   };
 
@@ -350,44 +314,42 @@ const Camas = () => {
 
   return (
     <div className="p-4" onClick={closeContextMenu}>
+      {/* Search Input */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Buscar por número de cédula..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+
+      {/* Add Room Button */}
       <button
         className="mb-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-700"
-        onClick={addFloor}
+        onClick={addRoom}
       >
-        Agregar Piso
+        Agregar Habitación
       </button>
+
       {loading ? (
         <p>Cargando datos...</p>
       ) : (
-        floors.map((floor) => (
-          <div
-            key={floor}
-            className="mb-6"
-            onContextMenu={(e) => handleContextMenu(e, "floor", floor)}
-          >
-            <DropdownItem
-              tag="button"
-              onClick={() => toggleFloor(floor)}
-              baseClassName="block w-full text-left px-4 py-2 text-lg font-bold text-white border-b border-gray-300 hover:bg-blue-700 transition-all duration-300"
-            >
-              Piso {floor}
-            </DropdownItem>
-            {expandedFloor === floor && (
-              <div className="flex flex-col gap-4 mt-2">
-                {rooms
-                  .filter((room) => room.floor === floor)
-                  .map((room) => (
+        <div className="flex flex-col gap-4">
+          {filteredRooms.map((room) => (
                     <div
                       key={room.id}
-                      className="border-b-1 ml-6"
+              className="border border-gray-300 rounded-lg"
                       onContextMenu={(e) => handleContextMenu(e, "room", room.id)}
                     >
                       <DropdownItem
                         tag="button"
                         onClick={() => toggleRoom(room.id)}
-                        baseClassName="block w-full text-left pt-2 text-lg font-bold text-white border-b items-center flex border-gray-300 hover:bg-blue-700 transition-all duration-300"
+                baseClassName="block w-full text-left px-4 py-3 text-lg font-bold text-white bg-blue-600 rounded-t-lg hover:bg-blue-700 transition-all duration-300"
                       >
-                        {room.name}
+                <div className="flex justify-between items-center">
+                  <span>{room.name}</span>
                         <div className="flex">
                           {room.patients.map((patient, i) => (
                             <div
@@ -397,23 +359,19 @@ const Camas = () => {
                               )}`}
                             ></div>
                           ))}
+                  </div>
                         </div>
                       </DropdownItem>
                       {expandedRoom === room.id && (
-                        <div className="overflow-x-auto">
-                          <table className="w-full border-collapse box-border">
+                <div className="overflow-x-auto bg-white">
+                  <table className="w-full border-collapse">
                             <thead>
-                              <tr className="text-gray-200 bg-gray-800 bg-opacity-20">
+                      <tr className="bg-gray-100">
                                 <th className="px-4 py-2 text-left">Cama</th>
-                                <th className="text-xl font-bold px-4 py-2 text-left">
-                                  Nombre
-                                </th>
-                                <th className="text-xl font-bold px-4 py-2 text-left">
-                                  Cédula
-                                </th>
-                                <th className="text-xl font-bold px-4 py-2 text-left">
-                                  Tiempo Hospitalizado
-                                </th>
+                        <th className="px-4 py-2 text-left">Nombre</th>
+                        <th className="px-4 py-2 text-left">Cédula</th>
+                        <th className="px-4 py-2 text-left">Prioridad</th>
+                        <th className="px-4 py-2 text-left">Tiempo Hospitalizado</th>
                                 <th className="px-4 py-2 text-left">Monitoreo</th>
                               </tr>
                             </thead>
@@ -424,9 +382,9 @@ const Camas = () => {
                                   onContextMenu={(e) =>
                                     handleContextMenu(e, "bed", { roomId: room.id, bedIndex: i })
                                   }
-                                  className={`hover:opacity-90 transition-all duration-300 ${getPriorityColor(
-                                    patient.priority
-                                  )}`}
+                          className={`hover:bg-gray-50 transition-all duration-300 ${
+                            patient.priority ? getPriorityColor(patient.priority) : ""
+                          }`}
                                 >
                                   <td className="px-4 py-2">{patient.bed}</td>
                                   <td className="px-4 py-2">
@@ -435,6 +393,11 @@ const Camas = () => {
                                   <td className="px-4 py-2">
                                     {patient.idNumber || "N/A"}
                                   </td>
+                          <td className="px-4 py-2">
+                            <span className={`px-2 py-1 rounded text-sm ${getPriorityColor(patient.priority)}`}>
+                              {patient.priority || "N/A"}
+                            </span>
+                          </td>
                                   <td className="px-4 py-2">
                                     {patient.hospitalizedTime || "N/A"}
                                   </td>
@@ -458,42 +421,18 @@ const Camas = () => {
                   ))}
               </div>
             )}
-          </div>
-        ))
-      )}
+      
       {contextMenu.visible && (
         <div
           className="absolute bg-white shadow-lg rounded p-2"
           style={{ top: contextMenu.y, left: contextMenu.x }}
         >
-          {contextMenu.type === "floor" && (
-            <>
-              <button
-                className="block w-full text-left px-4 py-2 hover:bg-gray-200"
-                onClick={() => {
-                  addRoom(contextMenu.id);
-                  closeContextMenu();
-                }}
-              >
-                Agregar Habitación
-              </button>
-              <button
-                className="block w-full text-left px-4 py-2 hover:bg-gray-200"
-                onClick={() => {
-                  deleteFloor(contextMenu.id);
-                  closeContextMenu();
-                }}
-              >
-                Eliminar Piso
-              </button>
-            </>
-          )}
           {contextMenu.type === "room" && (
             <>
               <button
                 className="block w-full text-left px-4 py-2 hover:bg-gray-200"
                 onClick={() => {
-                  addBed(contextMenu.id);
+                  addBed(contextMenu.id as number);
                   closeContextMenu();
                 }}
               >
@@ -502,7 +441,7 @@ const Camas = () => {
               <button
                 className="block w-full text-left px-4 py-2 hover:bg-gray-200"
                 onClick={() => {
-                  deleteRoom(contextMenu.id);
+                  deleteRoom(contextMenu.id as number);
                   closeContextMenu();
                 }}
               >
@@ -514,7 +453,8 @@ const Camas = () => {
             <button
               className="block w-full text-left px-4 py-2 hover:bg-gray-200"
               onClick={() => {
-                deleteBed(contextMenu.id.roomId, contextMenu.id.bedIndex);
+                const bedInfo = contextMenu.id as { roomId: number; bedIndex: number };
+                deleteBed(bedInfo.roomId, bedInfo.bedIndex);
                 closeContextMenu();
               }}
             >
@@ -523,6 +463,7 @@ const Camas = () => {
           )}
         </div>
       )}
+      
       {modalVisible && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
           <div className="bg-white p-6 rounded shadow-lg max-w-lg w-full">
@@ -554,6 +495,7 @@ const Camas = () => {
           </div>
         </div>
       )}
+      
       {monitoringPatient && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
           <div className="bg-white p-6 rounded shadow-lg max-w-lg w-full">
@@ -575,6 +517,7 @@ const Camas = () => {
           </div>
         </div>
       )}
+      
       {renaming.type && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
           <div className="bg-white p-6 rounded shadow-lg max-w-lg w-full">
@@ -590,7 +533,9 @@ const Camas = () => {
             <button
               className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-700"
               onClick={() => {
+                if (renaming.type && renaming.id) {
                 renameEntity(renaming.type, renaming.id, renaming.name);
+                }
                 setRenaming({ type: null, id: null, name: "" });
               }}
             >

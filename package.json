@@ -42,6 +42,7 @@
     "@svgr/webpack": "^8.1.0",
     "@types/node": "^20",
     "@types/react": "^19",
+    "@types/react-collapse": "^5.0.4",
     "@types/react-dom": "^19",
     "@types/react-transition-group": "^4.4.12",
     "eslint": "^9",

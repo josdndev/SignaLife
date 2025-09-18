@@ -6,30 +6,67 @@ import Pagination from "../tables/Pagination";
 import Slider from "rc-slider";
 import "rc-slider/assets/index.css";
 import { Collapse } from "react-collapse";
-import { getPacientes, getVisitas, getDoctores, getDiagnosticos } from "@/functions/api";
+import { getPacientes, getVisitas, getDoctores, getDiagnosticos, Visita as ApiVisita } from "@/functions/api";
+
+// Define types for the data
+interface Paciente {
+  id: number;
+  nombre: string;
+  cedula: string;
+  edad: number;
+}
+
+interface Visita extends ApiVisita{}
+
+interface Doctor {
+  id: number;
+  nombre: string;
+  especialidad: string;
+}
+
+interface Diagnostico {
+  id: number;
+  visita_id: number;
+  diagnostico: string;
+  informe_prediagnostico: string;
+}
+
+interface PatientData {
+  id: number | undefined;
+  name: string;
+  idNumber: string;
+  age: number;
+  status: string;
+  time: string;
+  doctor: string;
+  specialty: string;
+  report: string;
+  diagnostico: string | null | undefined;
+}
 
 const Emergency = () => {
   // Estado para manejar el modal
-  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [selectedPatient, setSelectedPatient] = useState<PatientData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState(""); // Estado para el buscador
-  const [filteredPatients, setFilteredPatients] = useState([]);
+  const [filteredPatients, setFilteredPatients] = useState<PatientData[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [patientsPerPage] = useState(5);
+  const [selectedDiagnostic, setSelectedDiagnostic] = useState<string | null>(null);
   const [ageRange, setAgeRange] = useState([0, 100]);
   const [timeRange, setTimeRange] = useState(["00:00", "23:59"]);
   const [selectedStatus, setSelectedStatus] = useState("");
   const [isCollapseOpen, setIsCollapseOpen] = useState(false);
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
   const [loading, setLoading] = useState(true);
-  const [apiPatients, setApiPatients] = useState([]);
+  const [apiPatients, setApiPatients] = useState<PatientData[]>([]);
 
   const toggleCollapse = () => {
     setIsCollapseOpen(!isCollapseOpen);
   };
 
-  const handleSpecialtyChange = (event) => {
+  const handleSpecialtyChange = (event: any) => {
     setSelectedSpecialty(event.target.value);
   };
 
@@ -53,21 +90,21 @@ const Emergency = () => {
           getDiagnosticos(),
         ]);
         // Unir los datos relevantes para la tabla de emergencia
-        const patientsData = visitas.map((visita) => {
-          const paciente = pacientes.find((p) => p.id === visita.historia_id || p.id === visita.paciente_id);
-          const doctor = doctores.find((d) => d.especialidad === visita.especialidad);
-          const diagnostico = diagnosticos.find((d) => d.visita_id === visita.id);
+        const patientsData: PatientData[] = (visitas as Visita[]).map((visita: Visita) => {
+          const paciente = (pacientes as Paciente[]).find((p) => p.id === visita.historia_id);
+          const doctor = (doctores as Doctor[]).find((d) => d.especialidad === visita.especialidad);
+          const diagnostico = (diagnosticos as Diagnostico[]).find((d) => d.visita_id === visita.id);
           return {
             id: visita.id,
             name: paciente?.nombre || "-",
             idNumber: paciente?.cedula || "-",
-            age: paciente?.edad || "-",
+            age: paciente?.edad || 0,
             status: visita.evaluacion_triaje || "-",
             time: visita.hora_entrada || "-",
             doctor: doctor?.nombre || visita.especialidad,
             specialty: visita.especialidad,
             report: diagnostico?.informe_prediagnostico || "-",
-            diagnostico: diagnostico?.diagnostico || "-",
+            diagnostico: diagnostico?.diagnostico || null,
           };
         });
         setApiPatients(patientsData);
@@ -85,7 +122,7 @@ const Emergency = () => {
   useEffect(() => {
     if (searchQuery) {
       setFilteredPatients(
-        apiPatients.filter((patient) =>
+        apiPatients.filter((patient: PatientData) =>
           patient.idNumber.includes(searchQuery.trim())
         )
       );
@@ -94,20 +131,21 @@ const Emergency = () => {
     }
   }, [searchQuery, apiPatients]);
 
-  // Función para abrir el modal
-  const openModal = (patient) => {
+ // Función para abrir el modal
+ const openModal = (patient: PatientData) => {
     setSelectedPatient(patient);
+    setSelectedDiagnostic(patient.diagnostico || null);
     setIsModalOpen(true);
   };
 
-  // Función para cerrar el modal
   const closeModal = () => {
     setSelectedPatient(null);
+    setSelectedDiagnostic(null);
     setIsModalOpen(false);
   };
 
   // Función para obtener el color de fondo según el estado
-  const getRowColor = (status, isDarkMode) => {
+  const getRowColor = (status: string, isDarkMode: boolean) => {
     const colors = {
       Rojo: isDarkMode ? "bg-red-700" : "bg-red-100",
       Naranja: isDarkMode ? "bg-orange-700" : "bg-orange-100",
@@ -116,39 +154,49 @@ const Emergency = () => {
       Azul: isDarkMode ? "bg-blue-700" : "bg-blue-100",
       Default: isDarkMode ? "bg-gray-700" : "bg-gray-100",
     };
-    return colors[status] || colors.Default;
+    return (colors as any)[status] || colors.Default;
   };
 
-  const handlePageChange = (page) => {
+  const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
 
-  const handleAgeChange = (range) => {
-    setAgeRange(range);
+  const handleAgeChange = (range: number | number[]) => {
+    if (typeof range === 'number') {
+      setAgeRange([range, 100]);
+    } else {
+      setAgeRange(range);
+    }
   };
 
-  const handleTimeChange = (range) => {
-    const formatTime = (minutes) => {
+  const handleTimeChange = (range: number | number[]) => {
+    let values: number[];
+    if (typeof range === 'number') {
+      values = [range, 1440];
+    } else {
+      values = range
+    }
+    const formatTime = (minutes: number) => {
       const hours = Math.floor(minutes / 60);
       const mins = minutes % 60;
       return `${hours.toString().padStart(2, "0")}:${mins
         .toString()
         .padStart(2, "0")}`;
     };
-    setTimeRange([formatTime(range[0]), formatTime(range[1])]);
+    setTimeRange([formatTime(values[0]), formatTime(values[1])]);
   };
 
-  const handleStatusChange = (event) => {
+  const handleStatusChange = (event: any) => {
     setSelectedStatus(event.target.value);
   };
 
-  const calculateWaitingTime = (arrivalTime) => {
+  const calculateWaitingTime = (arrivalTime: string) => {
     const [hours, minutes] = arrivalTime.split(/[: ]/).map(Number);
     const isPM = arrivalTime.includes("PM");
     const arrivalDate = new Date();
     arrivalDate.setHours(isPM && hours !== 12 ? hours + 12 : hours % 12, minutes, 0);
 
-    const diffInMs = currentTime - arrivalDate;
+    const diffInMs = currentTime.getTime() - arrivalDate.getTime();
     const diffInMinutes = Math.floor(diffInMs / 60000);
     const diffHours = Math.floor(diffInMinutes / 60);
     const diffMinutes = diffInMinutes % 60;
@@ -156,13 +204,13 @@ const Emergency = () => {
     return `${diffHours}h ${diffMinutes}m`;
   };
 
-  const filteredAndPaginatedPatients = filteredPatients
+  const filteredAndPaginatedPatients = apiPatients
     .filter(
-      (patient) =>
+      (patient: PatientData) =>
         (!selectedStatus || patient.status === selectedStatus) &&
         (!selectedSpecialty || patient.specialty === selectedSpecialty) &&
-        patient.age >= ageRange[0] &&
-        patient.age <= ageRange[1] &&
+        Number(patient.age) >= ageRange[0] &&
+        Number(patient.age) <= ageRange[1] &&
         patient.time >= timeRange[0] &&
         patient.time <= timeRange[1]
     )
@@ -327,7 +375,8 @@ const Emergency = () => {
 
             {/* Cuerpo de la tabla */}
             <TableBody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {filteredAndPaginatedPatients.map((patient) => (
+              {filteredAndPaginatedPatients.map((patient) => {
+                return (
                 <TableRow
                   key={patient.id}
                   className={`${getRowColor(
@@ -371,7 +420,8 @@ const Emergency = () => {
                     </button>
                   </TableCell>
                 </TableRow>
-              ))}
+              );
+              })}
             </TableBody>
           </Table>
         </div>
@@ -384,6 +434,26 @@ const Emergency = () => {
         onPageChange={handlePageChange}
       />
       </div>
+       {/* Modal */}
+       {isModalOpen && selectedPatient && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <h3 className="text-lg font-medium text-gray-800">Informe de Diagnóstico</h3>
+            <div className="mt-2 text-gray-600">
+              <p>Paciente: {selectedPatient.name}</p>
+              <p>Diagnóstico: {selectedDiagnostic || 'No disponible'}</p>
+            </div>
+            <div className="items-center px-4 py-3">
+              <button
+                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-700 mr-2"
+                onClick={closeModal}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
