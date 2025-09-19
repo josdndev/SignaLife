@@ -10,24 +10,6 @@ const nextConfig: NextConfig = {
       use: ["@svgr/webpack"],
     });
 
-    // Fix for client reference manifest issues
-    config.optimization = {
-      ...config.optimization,
-      splitChunks: {
-        ...config.optimization.splitChunks,
-        cacheGroups: {
-          ...config.optimization.splitChunks?.cacheGroups,
-          framework: {
-            chunks: 'all',
-            name: 'framework',
-            test: /(?<!node_modules.*)[\\/]node_modules[\\/](react|react-dom|scheduler|prop-types|use-subscription)[\\/]/,
-            priority: 40,
-            enforce: true,
-          },
-        },
-      },
-    };
-
     return config;
   },
   typescript: {
