@@ -11,9 +11,14 @@ const nextConfig: NextConfig = {
     });
     return config;
   },
-    typescript: {
+  typescript: {
     // Permite que la build pase aunque haya errores de tipos
     ignoreBuildErrors: true,
+  },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '100mb',
+    },
   },
 };
 

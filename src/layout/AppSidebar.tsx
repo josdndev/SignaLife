@@ -25,8 +25,9 @@ const navItems: NavItem[] = [
     name: "Registro",
     path: "/registro",
     subItems: [
-      { name: "Emergencia", path: "" },
-      { name: "Consultas", path: "/registro/consultas" },
+      { name: "Emergencia", path: "/rppg" },
+      { name: "Consultas", path: "/registro/consultas" }
+     
     ],
   },
   {
@@ -58,6 +59,11 @@ const navItems: NavItem[] = [
 
   },
   // Asistente eliminado porque no hay ruta /asistente definida aún
+  {
+    icon: <GridIcon />,
+    name: "rPPG",
+    path: "/rppg",
+  },
 ];
 
 const AppSidebar: React.FC = () => {
