@@ -1,3 +1,5 @@
+"use client";
+
 import StatsCards from '@/components/admin/StatsCards';
 import Emergency from "@/components/uiBasic/Emergency";
 

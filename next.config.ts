@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   webpack(config) {
     config.module.rules.push({
@@ -13,8 +13,7 @@ const nextConfig: NextConfig = {
     return config;
   },
   typescript: {
-    // Permite que la build pase aunque haya errores de tipos
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   experimental: {
     serverActions: {
@@ -25,6 +24,8 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  // Fix for client reference manifest issues
+  // output: 'standalone', // Commented out for Docker deployment
 };
 
 export default nextConfig;
