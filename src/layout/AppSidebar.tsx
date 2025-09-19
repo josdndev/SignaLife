@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
+import { useAuth } from "../context/AuthContext";
 import {
   GridIcon,
   GroupIcon,
@@ -26,8 +27,9 @@ const navItems: NavItem[] = [
     path: "/registro",
     subItems: [
       { name: "Emergencia", path: "/rppg" },
+      { name: "rPPG Local", path: "/rppg-local" },
       { name: "Consultas", path: "/registro/consultas" }
-     
+
     ],
   },
   {
@@ -68,7 +70,22 @@ const navItems: NavItem[] = [
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
+  const { doctor } = useAuth();
   const pathname = usePathname();
+
+  // Dynamic nav items based on role
+  const dynamicNavItems = [
+    ...navItems,
+  ];
+
+  // Add super user option if doctor is super
+  if (doctor?.role === "super") {
+    dynamicNavItems.splice(3, 0, {
+      icon: <GroupIcon />,
+      name: "Registrar Doctor",
+      path: "/registro-doctor",
+    });
+  }
 
   const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
     setOpenSubmenu((prev) => {
@@ -280,7 +297,7 @@ const AppSidebar: React.FC = () => {
                   <HorizontaLDots />
                 )}
               </h2>
-              {renderMenuItems(navItems, "main")}
+              {renderMenuItems(dynamicNavItems, "main")}
             </div>
           </div>
         </nav>
