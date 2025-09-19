@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: signa-life
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: NODE_ENV
+        value: production
+    buildCommand: "echo 'Build handled by Dockerfile'"
+    startCommand: "echo 'Start handled by Dockerfile'"
