@@ -40,7 +40,6 @@ const nextConfig: NextConfig = {
     },
   },
   // Additional build optimizations
-  output: 'standalone',
   images: {
     unoptimized: true,
   },
