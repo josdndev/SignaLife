@@ -5,12 +5,14 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 import {
   GridIcon,
   GroupIcon,
   ChatIcon,
   ChevronDownIcon,
   HorizontaLDots,
+  LockIcon,
 } from "../icons/index";
 
 type NavItem = {
@@ -70,7 +72,8 @@ const navItems: NavItem[] = [
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
-  const { doctor } = useAuth();
+  const { doctor, logout } = useAuth();
+  const { language, setLanguage } = useLanguage();
   const pathname = usePathname();
 
   // Dynamic nav items based on role
@@ -153,7 +156,7 @@ const AppSidebar: React.FC = () => {
                   )}
                 </button>
                 <div
-                  ref={(el) => (subMenuRefs.current[submenuKey] = el)}
+                  ref={(el) => { subMenuRefs.current[submenuKey] = el; }}
                   style={{
                     height:
                       openSubmenu?.type === menuType &&
@@ -301,6 +304,41 @@ const AppSidebar: React.FC = () => {
             </div>
           </div>
         </nav>
+        {/* Language switcher */}
+        <div className="mt-auto mb-2">
+          <div className={`flex gap-1 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"}`}>
+            <button
+              onClick={() => setLanguage('es')}
+              className={`px-2 py-1 text-xs rounded ${language === 'es' ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+            >
+              ES
+            </button>
+            <button
+              onClick={() => setLanguage('en')}
+              className={`px-2 py-1 text-xs rounded ${language === 'en' ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+            >
+              EN
+            </button>
+          </div>
+        </div>
+        {/* Logout button */}
+        <div className="mb-4">
+          <button
+            onClick={logout}
+            className={`menu-item group menu-item-inactive w-full ${
+              !isExpanded && !isHovered
+                ? "lg:justify-center"
+                : "lg:justify-start"
+            }`}
+          >
+            <span className="menu-item-icon-inactive">
+              <LockIcon />
+            </span>
+            {(isExpanded || isHovered || isMobileOpen) && (
+              <span className="menu-item-text">Cerrar Sesión</span>
+            )}
+          </button>
+        </div>
       </div>
     </aside>
   );

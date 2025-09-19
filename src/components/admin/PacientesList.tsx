@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { getPacientes, type Paciente } from '@/functions/api';
+import { useLanguage } from '@/context/LanguageContext';
 
 const PacientesList = () => {
+  const { t } = useLanguage();
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -20,7 +22,7 @@ const PacientesList = () => {
       setPacientes(data);
       setError('');
     } catch (err) {
-      setError('Error al cargar pacientes');
+      setError(t('pacientes.error'));
       console.error(err);
     } finally {
       setLoading(false);
@@ -55,10 +57,10 @@ const PacientesList = () => {
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-800 px-6 py-4">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-white dark:text-gray-100">
-            Lista de Pacientes
+            {t('pacientes.title')}
           </h2>
           <div className="bg-blue-500 dark:bg-blue-600 text-white dark:text-gray-100 px-3 py-1 rounded-full text-sm font-semibold">
-            {filteredPacientes.length} pacientes
+            {filteredPacientes.length} {t('pacientes.title').toLowerCase()}
           </div>
         </div>
       </div>
@@ -73,7 +75,7 @@ const PacientesList = () => {
           </div>
           <input
             type="text"
-            placeholder="Buscar por nombre o cédula..."
+            placeholder={t('pacientes.searchPlaceholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
@@ -87,19 +89,19 @@ const PacientesList = () => {
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                ID
+                {t('pacientes.id')}
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                Información Personal
+                {t('pacientes.personalInfo')}
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                Contacto
+                {t('pacientes.contact')}
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                Detalles Médicos
+                {t('pacientes.medicalDetails')}
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                Estado
+                {t('pacientes.status')}
               </th>
             </tr>
           </thead>
@@ -146,7 +148,7 @@ const PacientesList = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">
-                    Activo
+                    {t('pacientes.active')}
                   </span>
                 </td>
               </tr>
@@ -163,9 +165,9 @@ const PacientesList = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
           </div>
-          <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">No se encontraron pacientes</h3>
+          <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">{t('pacientes.noPacientes')}</h3>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            {searchTerm ? 'No hay pacientes que coincidan con tu búsqueda.' : 'No hay pacientes registrados.'}
+            {searchTerm ? t('pacientes.noPacientesMessage') : t('pacientes.noPacientesMessage2')}
           </p>
         </div>
       )}
