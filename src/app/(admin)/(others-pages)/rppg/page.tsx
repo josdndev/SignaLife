@@ -10,7 +10,7 @@ const RPPGPage = () => {
   return (
     <div >
 <iframe 
-  src="https://jnru67rsxyljlxpce4ag5q.streamlit.app" 
+  src="https://rppg-1-dk5z.vercel.app/" 
   allow="camera" 
   width="100%" 
   height="600">
