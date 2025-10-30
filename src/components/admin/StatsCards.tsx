@@ -28,23 +28,46 @@ const StatsCards = () => {
 
   const cargarEstadisticas = async () => {
     try {
-      const [doctores, pacientes, historias, visitas, diagnosticos] = await Promise.all([
-        getDoctores(),
-        getPacientes(),
-        getHistorias(),
-        getVisitas(),
-        getDiagnosticos()
+      // Ejecutar llamadas API individualmente para que una falla no detenga las demás
+      const results = await Promise.allSettled([
+        getDoctores().catch(() => []),
+        getPacientes().catch(() => []),
+        getHistorias().catch(() => []),
+        getVisitas().catch(() => []),
+        getDiagnosticos().catch(() => [])
       ]);
 
+      // Extraer resultados con fallback a arrays vacíos
+      const getResultArray = (result: PromiseSettledResult<any[]>): any[] => {
+        if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+          return result.value;
+        }
+        return [];
+      };
+
+      const doctoresResult = getResultArray(results[0]);
+      const pacientesResult = getResultArray(results[1]);
+      const historiasResult = getResultArray(results[2]);
+      const visitasResult = getResultArray(results[3]);
+      const diagnosticosResult = getResultArray(results[4]);
+
       setStats({
-        doctores: doctores.length,
-        pacientes: pacientes.length,
-        historias: historias.length,
-        visitas: visitas.length,
-        diagnosticos: diagnosticos.length
+        doctores: doctoresResult.length,
+        pacientes: pacientesResult.length,
+        historias: historiasResult.length,
+        visitas: visitasResult.length,
+        diagnosticos: diagnosticosResult.length
       });
     } catch (error) {
       console.error('Error al cargar estadísticas:', error);
+      // Fallback a valores en cero si todas las llamadas fallan
+      setStats({
+        doctores: 0,
+        pacientes: 0,
+        historias: 0,
+        visitas: 0,
+        diagnosticos: 0
+      });
     } finally {
       setLoading(false);
     }
@@ -115,4 +138,4 @@ const StatsCards = () => {
   );
 };
 
-export default StatsCards; 
+export default StatsCards;
