@@ -83,12 +83,27 @@ const Emergency = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [pacientes, visitas, doctores, diagnosticos] = await Promise.all([
-          getPacientes(),
-          getVisitas(),
-          getDoctores(),
-          getDiagnosticos(),
+        // Usar Promise.allSettled para que una falla no detenga las demás
+        const results = await Promise.allSettled([
+          getPacientes().catch(() => []),
+          getVisitas().catch(() => []),
+          getDoctores().catch(() => []),
+          getDiagnosticos().catch(() => [])
         ]);
+
+        // Extraer resultados con fallback seguro
+        const getResultArray = (result: PromiseSettledResult<any[]>): any[] => {
+          if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+            return result.value;
+          }
+          return [];
+        };
+
+        const pacientes = getResultArray(results[0]);
+        const visitas = getResultArray(results[1]);
+        const doctores = getResultArray(results[2]);
+        const diagnosticos = getResultArray(results[3]);
+
         // Unir los datos relevantes para la tabla de emergencia
         const patientsData: PatientData[] = (visitas as Visita[]).map((visita: Visita) => {
           const paciente = (pacientes as Paciente[]).find((p) => p.id === visita.historia_id);
@@ -110,6 +125,7 @@ const Emergency = () => {
         setApiPatients(patientsData);
         setFilteredPatients(patientsData);
       } catch (e) {
+        console.error('Error al cargar datos de emergencia:', e);
         setApiPatients([]);
         setFilteredPatients([]);
       }
