@@ -23,7 +23,7 @@
     "chart.js": "^4.4.9",
     "collapse": "^1.0.1",
     "flatpickr": "^4.6.13",
-    "next": "15.2.3",
+    "next": "^15.2.8",
     "next-i18n": "^0.0.1",
     "rc-slider": "^11.1.8",
     "react": "^19.0.0",
@@ -38,15 +38,12 @@
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
-
     "@svgr/webpack": "^8.1.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-collapse": "^5.0.4",
     "@types/react-dom": "^19",
     "@types/react-transition-group": "^4.4.12",
-
-
     "postcss": "^8",
     "tailwindcss": "^4.0.0",
     "typescript": "^5"
