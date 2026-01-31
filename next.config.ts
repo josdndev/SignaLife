@@ -25,7 +25,7 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   // Fix for client reference manifest issues
-  // output: 'standalone', // Commented out for Docker deployment
+   output: 'standalone', // Commented out for Docker deployment
 };
 
 export default nextConfig;
