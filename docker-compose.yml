@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  signa-life:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      # Optional: Mount logs for debugging
+      # - ./logs:/app/.next/cache
+    networks:
+      - signa-network
+
+networks:
+  signa-network:
+    driver: bridge
+
+volumes:
+  # Optional: Persistent volume for logs or cache
+  # logs:
