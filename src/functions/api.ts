@@ -1,6 +1,16 @@
 // Configuración de la API de SignaApi
 const API_BASE_URL = 'http://signalife-signaapi-zpsgqm-680e2e-200-58-96-209.traefik.me'; // URL de la nueva API
 
+// Demo doctor for fallback
+const DEMO_DOCTOR = {
+  id: 1,
+  nombre: 'Demo',
+  email: 'demo@signa.app',
+  cedula: '00000000',
+  especialidad: 'Medicina General',
+  role: 'doctor'
+};
+
 // Función para manejar errores de red
 const handleNetworkError = (error: any): string => {
   if (error.name === 'TypeError' && error.message.includes('fetch')) {
@@ -160,6 +170,32 @@ export const createPaciente = async (paciente: Omit<Paciente, 'id'>): Promise<Pa
   });
 };
 
+// Demo mode fallback data
+const getDemoFallback = (endpoint: string, expectedArray: boolean): any => {
+  const demoToken = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  if (demoToken !== 'demo-token') return null;
+  
+  if (endpoint.includes('/auth/me')) {
+    return { doctor: DEMO_DOCTOR };
+  }
+  if (endpoint.includes('/doctores')) {
+    return expectedArray ? [] : { doctores: [] };
+  }
+  if (endpoint.includes('/pacientes')) {
+    return expectedArray ? [] : { pacientes: [] };
+  }
+  if (endpoint.includes('/historias')) {
+    return expectedArray ? [] : { historias: [] };
+  }
+  if (endpoint.includes('/visitas')) {
+    return expectedArray ? [] : { visitas: [] };
+  }
+  if (endpoint.includes('/diagnosticos')) {
+    return expectedArray ? [] : { diagnosticos: [] };
+  }
+  return expectedArray ? [] : {};
+};
+
 // Función genérica para peticiones HTTP
 const apiRequest = async <T>(
   endpoint: string,
@@ -177,8 +213,20 @@ const apiRequest = async <T>(
       url += `?secret=${querySecret}`;
     }
 
+    // Get token from localStorage
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    
+    // Build headers
+    const headers: Record<string, string> = {};
+    if (options.method !== 'POST' || options.body) {
+      headers['Content-Type'] = 'application/json';
+    }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(url, {
-      headers: options.method !== 'POST' || options.body ? { 'Content-Type': 'application/json' } : undefined,
+      headers,
       signal: controller.signal,
       ...options
     });
@@ -201,6 +249,12 @@ const apiRequest = async <T>(
 
     return data;
   } catch (error) {
+    // Check if we're in demo mode and return fallback data
+    const fallback = getDemoFallback(endpoint, expectedArray);
+    if (fallback !== null) {
+      return fallback as T;
+    }
+    
     if (error instanceof Error) {
       if (error.name === 'AbortError') {
         throw new Error('Tiempo de espera agotado');
