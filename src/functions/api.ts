@@ -1,5 +1,5 @@
 // Configuración de la API de SignaApi
-const API_BASE_URL = 'https://signaapiv1-production.up.railway.app'; // URL de producción en Railway
+const API_BASE_URL = 'http://signalife-signaapi-zpsgqm-680e2e-200-58-96-209.traefik.me'; // URL de la nueva API
 
 // Función para manejar errores de red
 const handleNetworkError = (error: any): string => {
@@ -299,7 +299,7 @@ export const sendRPPGApi = async (formData: FormData): Promise<any> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
 
-    const url = `https://signaapiv1.onrender.com/rppg/`; // Usar endpoint directo
+    const url = `${API_BASE_URL}/rppg/`; // Usar endpoint de la nueva API
 
     const response = await fetch(url, {
       method: 'POST',
