@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const internalApiBaseUrl = process.env.INTERNAL_API_BASE_URL || "http://signa-api:8000";
+
 const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
@@ -28,15 +30,15 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/rppg/:path*',
-        destination: 'http://signa-api:8000/rppg/:path*',
+        destination: `${internalApiBaseUrl}/rppg/:path*`,
       },
       {
         source: '/api/:path*',
-        destination: 'http://signa-api:8000/:path*',
+        destination: `${internalApiBaseUrl}/:path*`,
       },
       {
         source: '/pacientes/:path*',
-        destination: 'http://signa-api:8000/pacientes/:path*',
+        destination: `${internalApiBaseUrl}/pacientes/:path*`,
       },
     ];
   },
