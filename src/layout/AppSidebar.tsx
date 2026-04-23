@@ -28,7 +28,8 @@ const navItems: NavItem[] = [
     name: "Registro",
     path: "/registro",
     subItems: [
-      { name: "Emergencia", path: "/rppg" },
+      { name: "Emergencia", path: "/registro/emergencia" },
+      { name: "OCR / Triage", path: "/registro/ocr" },
       { name: "rPPG Local", path: "/rppg-local" },
       { name: "Consultas", path: "/registro/consultas" }
 
@@ -40,7 +41,7 @@ const navItems: NavItem[] = [
     path: "/pacientes",
     subItems: [
       { name: "Listado", path: "/pacientes/listado" },
-      { name: "Habitaciones", path: "/pacientes/habitaciones" },
+      { name: "Cubículos", path: "/pacientes/habitaciones" },
       { name: "Emergencia", path: "/pacientes/emergencia" },
       { name: "Consultas", path: "/pacientes/consultas" },
     ],

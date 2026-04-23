@@ -6,28 +6,36 @@ import React, { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 
-// Hardcoded credentials
-const CEDULA = "12345678";
-const PASSWORD = "0107";
-
 export default function SignInForm() {
+  const [formData, setFormData] = useState({
+    cedula: "",
+    password: ""
+  });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const { login } = useAuth();
   const router = useRouter();
 
-  const handleLogin = async () => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({
+      ...prev,
+      [e.target.name]: e.target.value
+    }));
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError("");
     setLoading(true);
 
-    const success = await login(CEDULA, PASSWORD);
+    const success = await login(formData.cedula, formData.password);
     setLoading(false);
 
     if (success) {
-      router.push("/"); // Redirect to dashboard
+      router.push("/dashboard"); // Redirect to dashboard
     } else {
-      setError("Error al iniciar sesión");
+      setError("Cédula o contraseña incorrecta");
     }
   };
 
@@ -59,17 +67,58 @@ export default function SignInForm() {
               </div>
             )}
 
-            <div className="space-y-6">
+            <form onSubmit={handleLogin} className="space-y-6">
+              <div>
+                <label htmlFor="cedula" className="block text-sm font-medium text-gray-700 mb-1">
+                  Cédula
+                </label>
+                <input
+                  id="cedula"
+                  name="cedula"
+                  type="text"
+                  value={formData.cedula}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ingresa tu cédula"
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                  Contraseña
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ingresa tu contraseña"
+                  required
+                />
+              </div>
+
               <div>
                 <Button
                   className="w-full"
                   size="md"
-                  onClick={handleLogin}
+                  type="submit"
                   disabled={loading}
                 >
-                  {loading ? "Iniciando sesión..." : "Ingresar"}
+                  {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
                 </Button>
               </div>
+            </form>
+
+            <div className="mt-4 text-center">
+              <p className="text-sm text-gray-600">
+                ¿No tienes cuenta?{" "}
+                <Link href="/registro-doctor" className="text-blue-600 hover:text-blue-500">
+                  Registrar centro hospitalario
+                </Link>
+              </p>
             </div>
           </div>
         </div>

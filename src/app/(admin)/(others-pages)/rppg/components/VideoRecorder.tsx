@@ -2,25 +2,40 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 
+type RecorderResult =
+  | {
+      heartRate?: number;
+      respirationRate?: number;
+    }
+  | string
+  | null;
+
 const VideoRecorder = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [recording, setRecording] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [rPPGResults, setRPPGResults] = useState(null);
+  const [rPPGResults, setRPPGResults] = useState<RecorderResult>(null);
 
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
+    let intervalId: NodeJS.Timeout | undefined;
 
     const getVideo = async () => {
       try {
+        console.log('[VideoRecorder] Requesting camera permissions...');
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: 640, height: 480 },
         });
+        console.log('[VideoRecorder] Camera permissions granted, stream obtained:', stream.id);
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          console.log('[VideoRecorder] Video element connected to stream');
         }
       } catch (err) {
-        console.error("Error accessing webcam: ", err);
+        console.error("[VideoRecorder] Error accessing webcam: ", err);
+        if (err instanceof Error) {
+          console.error('[VideoRecorder] Error name:', err.name);
+          console.error('[VideoRecorder] Error message:', err.message);
+        }
       }
     };
 
@@ -93,10 +108,16 @@ const VideoRecorder = () => {
         });
       }, 1000);
     } else {
-      clearInterval(intervalId);
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
     }
 
-    return () => clearInterval(intervalId);
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
   }, [recording, videoRef]);
 
   const startAnalysis = () => {
@@ -194,8 +215,8 @@ const VideoRecorder = () => {
             <h3>Results:</h3>
             {typeof rPPGResults === 'object' && rPPGResults !== null ? (
               <>
-                <p style={resultItemStyle}>Heart Rate: {rPPGResults.heartRate} bpm</p>
-                <p style={resultItemStyle}>Respiration Rate: {rPPGResults.respirationRate} breaths/min</p>
+                <p style={resultItemStyle}>Heart Rate: {rPPGResults.heartRate ?? "N/A"} bpm</p>
+                <p style={resultItemStyle}>Respiration Rate: {rPPGResults.respirationRate ?? "N/A"} breaths/min</p>
               </>
             ) : (
               <p>Result: {rPPGResults}</p>

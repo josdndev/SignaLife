@@ -1,5 +1,5 @@
 // Configuración de la API de SignaApi
-const API_BASE_URL = 'http://signalife-signaapi-zpsgqm-680e2e-200-58-96-209.traefik.me'; // URL de la nueva API
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
 // Demo doctor for fallback
 const DEMO_DOCTOR = {
@@ -130,11 +130,24 @@ export interface AuthMeResponse {
   doctor: DoctorAuth;
 }
 
+type EntityEnvelope<T> = T & {
+  doctor?: Doctor;
+  paciente?: Paciente;
+  historia?: HistoriaClinica;
+  visita?: Visita;
+  diagnostico?: Diagnostico;
+};
+
+const extractEntity = <T>(response: EntityEnvelope<T>, key: keyof EntityEnvelope<T>): T => {
+  const wrappedValue = response[key] as T | undefined;
+  return wrappedValue ?? (response as unknown as T);
+};
+
 // Funciones para consumir la API
 
 // Doctores
 export const getDoctores = async (): Promise<Doctor[]> => {
-  const data = await apiRequest<{ doctores: Doctor[] }>('/doctores/', {}, false);
+  const data = await apiRequest<{ doctores: Doctor[] }>('/doctores', {}, false);
   return data.doctores;
 };
 
@@ -144,16 +157,17 @@ export const createDoctor = async (doctor: Omit<Doctor, 'id'>): Promise<Doctor> 
   if (validationError) {
     throw new Error(validationError);
   }
-  
-  return apiRequest<Doctor>('/doctores/', {
+
+  const data = await apiRequest<EntityEnvelope<Doctor>>('/doctores', {
     method: 'POST',
     body: JSON.stringify(doctor)
   });
+  return extractEntity<Doctor>(data, 'doctor');
 };
 
 // Pacientes
 export const getPacientes = async (): Promise<Paciente[]> => {
-  const data = await apiRequest<{ pacientes: Paciente[] }>('/pacientes/', {}, false);
+  const data = await apiRequest<{ pacientes: Paciente[] }>('/pacientes', {}, false);
   return data.pacientes;
 };
 
@@ -163,11 +177,12 @@ export const createPaciente = async (paciente: Omit<Paciente, 'id'>): Promise<Pa
   if (validationError) {
     throw new Error(validationError);
   }
-  
-  return apiRequest<Paciente>('/pacientes/', {
+
+  const data = await apiRequest<EntityEnvelope<Paciente>>('/pacientes', {
     method: 'POST',
     body: JSON.stringify(paciente)
   });
+  return extractEntity<Paciente>(data, 'paciente');
 };
 
 // Demo mode fallback data
@@ -216,19 +231,25 @@ const apiRequest = async <T>(
     // Get token from localStorage
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
     
-    // Build headers
-    const headers: Record<string, string> = {};
+    // Build headers - merge with options.headers if provided
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string> || {})
+    };
+    
+    // Set Content-Type for non-POST requests or when body is present
     if (options.method !== 'POST' || options.body) {
       headers['Content-Type'] = 'application/json';
     }
+    
+    // Set Authorization header if token exists
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
     const response = await fetch(url, {
+      ...options,
       headers,
-      signal: controller.signal,
-      ...options
+      signal: controller.signal
     });
 
     clearTimeout(timeoutId);
@@ -267,41 +288,44 @@ const apiRequest = async <T>(
 
 // Historias Clínicas
 export const getHistorias = async (): Promise<HistoriaClinica[]> => {
-  const data = await apiRequest<{ historias: HistoriaClinica[] }>('/historias/', {}, false);
+  const data = await apiRequest<{ historias: HistoriaClinica[] }>('/historias', {}, false);
   return data.historias;
 };
 
 export const createHistoria = async (historia: Omit<HistoriaClinica, 'id'>): Promise<HistoriaClinica> => {
-  return apiRequest<HistoriaClinica>('/historias/', {
+  const data = await apiRequest<EntityEnvelope<HistoriaClinica>>('/historias', {
     method: 'POST',
     body: JSON.stringify(historia)
   });
+  return extractEntity<HistoriaClinica>(data, 'historia');
 };
 
 // Visitas
 export const getVisitas = async (): Promise<Visita[]> => {
-  const data = await apiRequest<{ visitas: Visita[] }>('/visitas/', {}, false);
+  const data = await apiRequest<{ visitas: Visita[] }>('/visitas', {}, false);
   return data.visitas;
 };
 
 export const createVisita = async (visita: Omit<Visita, 'id'>): Promise<Visita> => {
-  return apiRequest<Visita>('/visitas/', {
+  const data = await apiRequest<EntityEnvelope<Visita>>('/visitas', {
     method: 'POST',
     body: JSON.stringify(visita)
   });
+  return extractEntity<Visita>(data, 'visita');
 };
 
 // Diagnósticos
 export const getDiagnosticos = async (): Promise<Diagnostico[]> => {
-  const data = await apiRequest<{ diagnosticos: Diagnostico[] }>('/diagnosticos/', {}, false);
+  const data = await apiRequest<{ diagnosticos: Diagnostico[] }>('/diagnosticos', {}, false);
   return data.diagnosticos;
 };
 
 export const createDiagnostico = async (diagnostico: Omit<Diagnostico, 'id'>): Promise<Diagnostico> => {
-  return apiRequest<Diagnostico>('/diagnosticos/', {
+  const data = await apiRequest<EntityEnvelope<Diagnostico>>('/diagnosticos', {
     method: 'POST',
     body: JSON.stringify(diagnostico)
   });
+  return extractEntity<Diagnostico>(data, 'diagnostico');
 };
 
 // Autenticación
@@ -330,6 +354,7 @@ export const registerNewDoctor = async (
   cedula: string,
   password: string,
   especialidad: string,
+  role: string,
   secret: string
 ): Promise<any> => {
   return apiRequest<any>('/auth/register-doctor', {
@@ -339,7 +364,8 @@ export const registerNewDoctor = async (
       email,
       cedula,
       password,
-      especialidad
+      especialidad,
+      role
     }),
     headers: {
       'Content-Type': 'application/json'
@@ -353,7 +379,7 @@ export const sendRPPGApi = async (formData: FormData): Promise<any> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
 
-    const url = `${API_BASE_URL}/rppg/`; // Usar endpoint de la nueva API
+    const url = `${API_BASE_URL}/rppg`; // Usar endpoint de la nueva API
 
     const response = await fetch(url, {
       method: 'POST',

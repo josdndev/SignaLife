@@ -1,35 +1,39 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getPacientes, type Paciente } from '@/functions/api';
 import { useLanguage } from '@/context/LanguageContext';
+import {
+  formatDate,
+  getClinicalData,
+  getTriageClasses,
+  type PacienteEnriched,
+} from '@/lib/clinicalData';
 
 const PacientesList = () => {
   const { t } = useLanguage();
-  const [pacientes, setPacientes] = useState<Paciente[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState(''); // Estado para el término de búsqueda
+  const [pacientes, setPacientes] = useState<PacienteEnriched[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    cargarPacientes();
-  }, []);
+  useEffect(() => {
+    const cargarPacientes = async () => {
+      try {
+        setLoading(true);
+        const data = await getClinicalData();
+        setPacientes(data.pacientesEnriched);
+        setError('');
+      } catch (err) {
+        setError(t('pacientes.error'));
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const cargarPacientes = async () => {
-    try {
-      setLoading(true);
-      const data = await getPacientes();
-      setPacientes(data);
-      setError('');
-    } catch (err) {
-      setError(t('pacientes.error'));
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    cargarPacientes();
+  }, [t]);
 
-  // Filtra la lista de pacientes basándose en el término de búsqueda
   const filteredPacientes = pacientes.filter(paciente =>
     paciente.cedula.toLowerCase().includes(searchTerm.toLowerCase()) ||
     paciente.nombre.toLowerCase().includes(searchTerm.toLowerCase())
@@ -132,23 +136,23 @@ const PacientesList = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-900 dark:text-gray-100">
-                    No disponible
+                    {paciente.historias.length} historia{paciente.historias.length === 1 ? '' : 's'}
                   </div>
                   <div className="text-sm text-gray-500 dark:text-gray-400">
-                    No disponible
+                    {paciente.visitas.length} visita{paciente.visitas.length === 1 ? '' : 's'}
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-6 py-4">
                   <div className="text-sm text-gray-900 dark:text-gray-100">
-                    No especificado
+                    {paciente.ultimaVisita?.especialidad ?? 'Sin especialidad registrada'}
                   </div>
                   <div className="text-sm text-gray-500 dark:text-gray-400">
-                    No disponible
+                    {paciente.ultimaVisita ? formatDate(paciente.ultimaVisita.hora_entrada) : 'Sin visitas registradas'}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">
-                    {t('pacientes.active')}
+                  <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${getTriageClasses(paciente.ultimaVisita?.evaluacion_triaje)}`}>
+                    {paciente.ultimaVisita?.evaluacion_triaje ?? t('pacientes.active')}
                   </span>
                 </td>
               </tr>

@@ -1,35 +1,34 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getDoctores, type Doctor } from '@/functions/api';
 import { useLanguage } from '@/context/LanguageContext';
+import { getClinicalData, type DoctorEnriched } from '@/lib/clinicalData';
 
 const DoctoresList = () => {
   const { t } = useLanguage();
-  const [doctores, setDoctores] = useState<Doctor[]>([]);
+  const [doctores, setDoctores] = useState<DoctorEnriched[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState(''); // Estado para el término de búsqueda
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
+    const cargarDoctores = async () => {
+      try {
+        setLoading(true);
+        const data = await getClinicalData();
+        setDoctores(data.doctoresEnriched);
+        setError('');
+      } catch (err) {
+        setError(t('doctores.error'));
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     cargarDoctores();
-  }, []);
+  }, [t]);
 
-  const cargarDoctores = async () => {
-    try {
-      setLoading(true);
-      const data = await getDoctores();
-      setDoctores(data);
-      setError('');
-    } catch (err) {
-      setError(t('doctores.error'));
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Filtra la lista de doctores basándose en el término de búsqueda
   const filteredDoctores = doctores.filter(doctor =>
     doctor.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
     doctor.email.toLowerCase().includes(searchTerm.toLowerCase())
@@ -100,6 +99,9 @@ const DoctoresList = () => {
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                 {t('doctores.specialty')}
               </th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                Actividad
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -130,6 +132,14 @@ const DoctoresList = () => {
                   <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400">
                     {doctor.especialidad}
                   </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900 dark:text-gray-100">
+                    {doctor.visitas.length} visita{doctor.visitas.length === 1 ? '' : 's'}
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    {doctor.totalPacientes} paciente{doctor.totalPacientes === 1 ? '' : 's'}
+                  </div>
                 </td>
               </tr>
             ))}

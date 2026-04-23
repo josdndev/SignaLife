@@ -24,8 +24,22 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  // Fix for client reference manifest issues
-   output: 'standalone', // Commented out for Docker deployment
+  async rewrites() {
+    return [
+      {
+        source: '/api/rppg/:path*',
+        destination: 'http://signa-api:8000/rppg/:path*',
+      },
+      {
+        source: '/api/:path*',
+        destination: 'http://signa-api:8000/:path*',
+      },
+      {
+        source: '/pacientes/:path*',
+        destination: 'http://signa-api:8000/pacientes/:path*',
+      },
+    ];
+  },
 };
 
 export default nextConfig;

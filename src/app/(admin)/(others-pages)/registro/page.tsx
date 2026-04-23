@@ -101,6 +101,48 @@ export default function RegistroPage() {
             </div>
           </div>
         </div>
+
+        <div className="rounded-sm border border-stroke bg-white shadow-default transition-all hover:shadow-lg dark:border-strokedark dark:bg-boxdark sm:col-span-2">
+          <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
+            <h3 className="font-medium text-black dark:text-white">
+              OCR y Triage Digital
+            </h3>
+          </div>
+          <div className="p-6.5">
+            <div className="mb-4.5">
+              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-blue-500/10 text-blue-600">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="h-8 w-8"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3.75 4.5h16.5M3.75 19.5h16.5M5.25 7.5h13.5v9H5.25v-9Zm3 1.5v6m3-6v6m3-6v6"
+                  />
+                </svg>
+              </div>
+              <p className="mb-5 text-black dark:text-white">
+                Flujo local de triage digital con captura de video, entrevista guiada, análisis de señal orientativo
+                y guardado del caso en el sistema clínico.
+              </p>
+              <ul className="mb-6 list-disc pl-6 text-sm text-gray-600 dark:text-gray-400">
+                <li className="mb-1">Captura biométrica no invasiva</li>
+                <li className="mb-1">Entrevista clínica estructurada con voz opcional</li>
+                <li className="mb-1">Dashboard integrado y guardado del caso</li>
+              </ul>
+              <Link href="/registro/ocr">
+                <button className="flex w-full justify-center rounded bg-blue-600 p-3 font-medium text-white transition-all hover:bg-blue-700">
+                  Ir a OCR y Triage
+                </button>
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

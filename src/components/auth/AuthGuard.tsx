@@ -9,16 +9,19 @@ interface AuthGuardProps {
   children: React.ReactNode;
 }
 
+const PUBLIC_ROUTES = new Set(["/", "/signin", "/signup", "/registro-doctor"]);
+
 const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const isPublicRoute = PUBLIC_ROUTES.has(pathname);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && pathname !== '/signin') {
+    if (!isLoading && !isAuthenticated && !isPublicRoute) {
       router.push('/signin');
     }
-  }, [isAuthenticated, isLoading, router, pathname]);
+  }, [isAuthenticated, isLoading, isPublicRoute, router]);
 
   if (isLoading) {
     return (
@@ -31,7 +34,7 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
     );
   }
 
-  if (!isAuthenticated && pathname !== '/signin') {
+  if (!isAuthenticated && !isPublicRoute) {
     return null; // Will redirect
   }
 

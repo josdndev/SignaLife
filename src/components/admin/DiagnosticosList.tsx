@@ -1,50 +1,44 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getDiagnosticos, type Diagnostico } from '@/functions/api';
 import { useLanguage } from '@/context/LanguageContext';
+import {
+  formatDate,
+  getClinicalData,
+  getTriageClasses,
+  type VisitaEnriched,
+} from '@/lib/clinicalData';
 
 const DiagnosticosList = () => {
   const { t } = useLanguage();
-  const [diagnosticos, setDiagnosticos] = useState<Diagnostico[]>([]);
+  const [diagnosticos, setDiagnosticos] = useState<VisitaEnriched[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState(''); // Estado para el término de búsqueda
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
+    const cargarDiagnosticos = async () => {
+      try {
+        setLoading(true);
+        const data = await getClinicalData();
+        setDiagnosticos(data.visitasEnriched.filter((visita) => !!visita.diagnostico));
+        setError('');
+      } catch (err) {
+        setError(t('diagnosticos.error'));
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     cargarDiagnosticos();
-  }, []);
+  }, [t]);
 
-  const cargarDiagnosticos = async () => {
-    try {
-      setLoading(true);
-      const data = await getDiagnosticos();
-      setDiagnosticos(data);
-      setError('');
-    } catch (err) {
-      setError(t('diagnosticos.error'));
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Filtra la lista de diagnósticos basándose en el término de búsqueda
   const filteredDiagnosticos = diagnosticos.filter(diagnostico =>
-    diagnostico.diagnostico.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    diagnostico.resultado_rppg.toLowerCase().includes(searchTerm.toLowerCase())
+    diagnostico.diagnostico?.diagnostico.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    diagnostico.diagnostico?.resultado_rppg.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    diagnostico.paciente?.nombre?.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const getResultadoColor = (resultado: string) => {
-    switch (resultado.toLowerCase()) {
-      case 'normal':
-        return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400';
-      case 'anormal':
-        return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400';
-      default:
-        return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400';
-    }
-  };
 
   if (loading) {
     return (
@@ -106,10 +100,16 @@ const DiagnosticosList = () => {
                 {t('diagnosticos.visitId')}
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                Paciente
+              </th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                 {t('diagnosticos.diagnosis')}
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                 {t('diagnosticos.rppgResult')}
+              </th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                Fecha
               </th>
             </tr>
           </thead>
@@ -129,18 +129,29 @@ const DiagnosticosList = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-900 dark:text-gray-100">
-                    {diagnostico.visita_id}
+                    {diagnostico.id}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {diagnostico.paciente?.nombre ?? 'Sin paciente'}
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    {diagnostico.especialidad}
+                  </div>
+                </td>
+                <td className="px-6 py-4">
                   <div className="text-sm text-gray-900 dark:text-gray-100 max-w-xs truncate">
-                    {diagnostico.diagnostico}
+                    {diagnostico.diagnostico?.diagnostico}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getResultadoColor(diagnostico.resultado_rppg)}`}>
-                    {diagnostico.resultado_rppg}
+                  <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${getTriageClasses(diagnostico.diagnostico?.resultado_rppg)}`}>
+                    {diagnostico.diagnostico?.resultado_rppg}
                   </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  {formatDate(diagnostico.hora_entrada)}
                 </td>
               </tr>
             ))}

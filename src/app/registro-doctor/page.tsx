@@ -11,27 +11,18 @@ const RegistroDoctorPage = () => {
     email: '',
     cedula: '',
     password: '',
-    especialidad: ''
+    especialidad: '',
+    isSuperUser: false
   });
   const [secret, setSecret] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const { doctor } = useAuth();
+  const { doctor, login } = useAuth();
   const router = useRouter();
 
-  // Check if user is super admin
-  if (doctor?.role !== "super") {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600 mb-4">Acceso Denegado</h1>
-          <p className="text-gray-600">Solo los super usuarios pueden registrar nuevos doctores.</p>
-        </div>
-      </div>
-    );
-  }
+  // Allow registration without login for initial setup
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,16 +44,27 @@ const RegistroDoctorPage = () => {
         formData.cedula.trim(),
         formData.password.trim(),
         formData.especialidad.trim(),
+        formData.isSuperUser ? 'super' : 'doctor',
         secret.trim()
       );
 
-      setSuccess('Doctor registrado exitosamente');
+      setSuccess('Usuario registrado exitosamente. Iniciando sesión...');
+
+      // Automatically login after registration
+      const loginSuccess = await login(formData.cedula.trim(), formData.password.trim());
+      if (loginSuccess) {
+        router.push('/dashboard');
+      } else {
+        setError('Registro exitoso, pero error al iniciar sesión automáticamente. Por favor, inicia sesión manualmente.');
+      }
+
       setFormData({
         nombre: '',
         email: '',
         cedula: '',
         password: '',
-        especialidad: ''
+        especialidad: '',
+        isSuperUser: false
       });
       setSecret('');
     } catch (error: any) {
@@ -76,6 +78,13 @@ const RegistroDoctorPage = () => {
     setFormData(prev => ({
       ...prev,
       [e.target.name]: e.target.value
+    }));
+  };
+
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({
+      ...prev,
+      [e.target.name]: e.target.checked
     }));
   };
 
@@ -171,6 +180,20 @@ const RegistroDoctorPage = () => {
             />
           </div>
 
+          <div className="flex items-center">
+            <input
+              id="isSuperUser"
+              name="isSuperUser"
+              type="checkbox"
+              checked={formData.isSuperUser}
+              onChange={handleCheckboxChange}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="isSuperUser" className="ml-2 block text-sm text-gray-900">
+              Usuario Super Administrador
+            </label>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Clave Secreta *
@@ -191,7 +214,7 @@ const RegistroDoctorPage = () => {
             disabled={loading}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Registrando...' : 'Registrar Doctor'}
+            {loading ? 'Registrando...' : 'Registrar Centro Hospitalario'}
           </button>
         </form>
       </div>

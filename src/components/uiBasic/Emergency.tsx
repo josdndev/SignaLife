@@ -1,471 +1,516 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Pagination from "../tables/Pagination";
-import Slider from "rc-slider";
-import "rc-slider/assets/index.css";
-import { Collapse } from "react-collapse";
-import { getPacientes, getVisitas, getDoctores, getDiagnosticos, Visita as ApiVisita } from "@/functions/api";
+import {
+  formatDate,
+  getClinicalData,
+  getTriageClasses,
+  type VisitaEnriched,
+} from "@/lib/clinicalData";
+import {
+  assignVisitToBed,
+  attachEmergencyBoard,
+  EMERGENCY_BEDS_PER_ROOM,
+  getNextAvailableBed,
+  getRequiredRoomCount,
+  markVisitAttended,
+  releaseVisitBed,
+  reopenEmergencyVisit,
+  sortEmergencyVisits,
+  subscribeEmergencyBoard,
+  type EmergencyVisit,
+  type EmergencyVisitStatus,
+} from "@/lib/emergencyBoard";
 
-// Define types for the data
-interface Paciente {
-  id: number;
-  nombre: string;
-  cedula: string;
-  edad: number;
-}
+const PAGE_SIZE = 7;
 
-interface Visita extends ApiVisita{}
+type QueueFilter = "" | EmergencyVisitStatus;
 
-interface Doctor {
-  id: number;
-  nombre: string;
-  especialidad: string;
-}
+const QUEUE_LABELS: Record<EmergencyVisitStatus, string> = {
+  waiting: "En espera",
+  in_bed: "En cama",
+  attended: "Atendido",
+};
 
-interface Diagnostico {
-  id: number;
-  visita_id: number;
-  diagnostico: string;
-  informe_prediagnostico: string;
-}
-
-interface PatientData {
-  id: number | undefined;
-  name: string;
-  idNumber: string;
-  age: number;
-  status: string;
-  time: string;
-  doctor: string;
-  specialty: string;
-  report: string;
-  diagnostico: string | null | undefined;
-}
+const QUEUE_CLASSES: Record<EmergencyVisitStatus, string> = {
+  waiting: "bg-amber-100 text-amber-800 ring-amber-200",
+  in_bed: "bg-blue-100 text-blue-800 ring-blue-200",
+  attended: "bg-emerald-100 text-emerald-800 ring-emerald-200",
+};
 
 const Emergency = () => {
-  // Estado para manejar el modal
-  const [selectedPatient, setSelectedPatient] = useState<PatientData | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [searchQuery, setSearchQuery] = useState(""); // Estado para el buscador
-  const [filteredPatients, setFilteredPatients] = useState<PatientData[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [patientsPerPage] = useState(5);
-  const [selectedDiagnostic, setSelectedDiagnostic] = useState<string | null>(null);
-  const [ageRange, setAgeRange] = useState([0, 100]);
-  const [timeRange, setTimeRange] = useState(["00:00", "23:59"]);
-  const [selectedStatus, setSelectedStatus] = useState("");
-  const [isCollapseOpen, setIsCollapseOpen] = useState(false);
-  const [selectedSpecialty, setSelectedSpecialty] = useState("");
+  const [visitas, setVisitas] = useState<VisitaEnriched[]>([]);
   const [loading, setLoading] = useState(true);
-  const [apiPatients, setApiPatients] = useState<PatientData[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [selectedSpecialty, setSelectedSpecialty] = useState("");
+  const [selectedQueueStatus, setSelectedQueueStatus] = useState<QueueFilter>("");
+  const [showAttended, setShowAttended] = useState(false);
+  const [selectedVisit, setSelectedVisit] = useState<EmergencyVisit | null>(null);
+  const [actionError, setActionError] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
 
-  const toggleCollapse = () => {
-    setIsCollapseOpen(!isCollapseOpen);
-  };
-
-  const handleSpecialtyChange = (event: any) => {
-    setSelectedSpecialty(event.target.value);
-  };
-
-  // Actualizar la hora actual cada segundo
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    try {
       setLoading(true);
-      try {
-        // Usar Promise.allSettled para que una falla no detenga las demás
-        const results = await Promise.allSettled([
-          getPacientes().catch(() => []),
-          getVisitas().catch(() => []),
-          getDoctores().catch(() => []),
-          getDiagnosticos().catch(() => [])
-        ]);
-
-        // Extraer resultados con fallback seguro
-        const getResultArray = (result: PromiseSettledResult<any[]>): any[] => {
-          if (result.status === 'fulfilled' && Array.isArray(result.value)) {
-            return result.value;
-          }
-          return [];
-        };
-
-        const pacientes = getResultArray(results[0]);
-        const visitas = getResultArray(results[1]);
-        const doctores = getResultArray(results[2]);
-        const diagnosticos = getResultArray(results[3]);
-
-        // Unir los datos relevantes para la tabla de emergencia
-        const patientsData: PatientData[] = (visitas as Visita[]).map((visita: Visita) => {
-          const paciente = (pacientes as Paciente[]).find((p) => p.id === visita.historia_id);
-          const doctor = (doctores as Doctor[]).find((d) => d.especialidad === visita.especialidad);
-          const diagnostico = (diagnosticos as Diagnostico[]).find((d) => d.visita_id === visita.id);
-          return {
-            id: visita.id,
-            name: paciente?.nombre || "-",
-            idNumber: paciente?.cedula || "-",
-            age: paciente?.edad || 0,
-            status: visita.evaluacion_triaje || "-",
-            time: visita.hora_entrada || "-",
-            doctor: doctor?.nombre || visita.especialidad,
-            specialty: visita.especialidad,
-            report: diagnostico?.informe_prediagnostico || "-",
-            diagnostico: diagnostico?.diagnostico || null,
-          };
-        });
-        setApiPatients(patientsData);
-        setFilteredPatients(patientsData);
-      } catch (e) {
-        console.error('Error al cargar datos de emergencia:', e);
-        setApiPatients([]);
-        setFilteredPatients([]);
-      }
+      const data = await getClinicalData();
+      setVisitas(data.visitasEnriched);
+    } catch (error) {
+      console.error("Error al cargar datos de emergencia:", error);
+      setVisitas([]);
+    } finally {
       setLoading(false);
-    };
-    fetchData();
+    }
   }, []);
 
-  // Filtrar pacientes por cédula
   useEffect(() => {
-    if (searchQuery) {
-      setFilteredPatients(
-        apiPatients.filter((patient: PatientData) =>
-          patient.idNumber.includes(searchQuery.trim())
-        )
+    void fetchData();
+    return subscribeEmergencyBoard(() => {
+      void fetchData();
+    });
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (!actionError && !actionMessage) return;
+    const timer = window.setTimeout(() => {
+      setActionError("");
+      setActionMessage("");
+    }, 4500);
+    return () => window.clearTimeout(timer);
+  }, [actionError, actionMessage]);
+
+  const operationalVisits = useMemo(
+    () => sortEmergencyVisits(attachEmergencyBoard(visitas)),
+    [visitas]
+  );
+
+  const specialties = useMemo(
+    () =>
+      Array.from(
+        new Set(operationalVisits.map((visita) => visita.especialidad).filter(Boolean))
+      ).sort(),
+    [operationalVisits]
+  );
+
+  const filteredVisits = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return operationalVisits.filter((visita) => {
+      const matchesQuery =
+        !query ||
+        visita.paciente?.cedula?.toLowerCase().includes(query) ||
+        visita.paciente?.nombre?.toLowerCase().includes(query) ||
+        visita.prediagnostico?.toLowerCase().includes(query) ||
+        visita.diagnostico?.diagnostico?.toLowerCase().includes(query);
+
+      const matchesStatus = !selectedStatus || visita.evaluacion_triaje === selectedStatus;
+      const matchesSpecialty = !selectedSpecialty || visita.especialidad === selectedSpecialty;
+      const matchesQueueStatus = !selectedQueueStatus || visita.board.status === selectedQueueStatus;
+      const shouldDisplayAttended = showAttended || visita.board.status !== "attended";
+
+      return (
+        matchesQuery &&
+        matchesStatus &&
+        matchesSpecialty &&
+        matchesQueueStatus &&
+        shouldDisplayAttended
       );
-    } else {
-      setFilteredPatients(apiPatients);
+    });
+  }, [operationalVisits, searchQuery, selectedQueueStatus, selectedSpecialty, selectedStatus, showAttended]);
+
+  const paginatedVisits = filteredVisits.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedQueueStatus, selectedSpecialty, selectedStatus, showAttended]);
+
+  useEffect(() => {
+    if (!selectedVisit?.id) return;
+    const updatedVisit = operationalVisits.find((visita) => visita.id === selectedVisit.id) ?? null;
+    setSelectedVisit(updatedVisit);
+  }, [operationalVisits, selectedVisit?.id]);
+
+  const stats = {
+    waiting: operationalVisits.filter((visita) => visita.board.status === "waiting").length,
+    inBed: operationalVisits.filter((visita) => visita.board.status === "in_bed").length,
+    attended: operationalVisits.filter((visita) => visita.board.status === "attended").length,
+    critical: operationalVisits.filter(
+      (visita) =>
+        visita.board.status !== "attended" &&
+        visita.evaluacion_triaje.toLowerCase() === "rojo"
+    ).length,
+  };
+
+  function setFeedback(message: string, kind: "error" | "success") {
+    if (kind === "error") {
+      setActionError(message);
+      setActionMessage("");
+      return;
     }
-  }, [searchQuery, apiPatients]);
 
- // Función para abrir el modal
- const openModal = (patient: PatientData) => {
-    setSelectedPatient(patient);
-    setSelectedDiagnostic(patient.diagnostico || null);
-    setIsModalOpen(true);
-  };
+    setActionMessage(message);
+    setActionError("");
+  }
 
-  const closeModal = () => {
-    setSelectedPatient(null);
-    setSelectedDiagnostic(null);
-    setIsModalOpen(false);
-  };
-
-  // Función para obtener el color de fondo según el estado
-  const getRowColor = (status: string, isDarkMode: boolean) => {
-    const colors = {
-      Rojo: isDarkMode ? "bg-red-700" : "bg-red-100",
-      Naranja: isDarkMode ? "bg-orange-700" : "bg-orange-100",
-      Amarillo: isDarkMode ? "bg-yellow-600" : "bg-yellow-100",
-      Verde: isDarkMode ? "bg-green-700" : "bg-green-100",
-      Azul: isDarkMode ? "bg-blue-700" : "bg-blue-100",
-      Default: isDarkMode ? "bg-gray-700" : "bg-gray-100",
-    };
-    return (colors as any)[status] || colors.Default;
-  };
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
-  const handleAgeChange = (range: number | number[]) => {
-    if (typeof range === 'number') {
-      setAgeRange([range, 100]);
-    } else {
-      setAgeRange(range);
+  function ensureVisitId(visita: EmergencyVisit) {
+    if (typeof visita.id !== "number") {
+      throw new Error("La visita no tiene ID válido.");
     }
-  };
+    return visita.id;
+  }
 
-  const handleTimeChange = (range: number | number[]) => {
-    let values: number[];
-    if (typeof range === 'number') {
-      values = [range, 1440];
-    } else {
-      values = range
+  function assignBed(visita: EmergencyVisit) {
+    try {
+      const visitId = ensureVisitId(visita);
+      if (visita.board.status === "attended") {
+        setFeedback("El paciente ya está marcado como atendido.", "error");
+        return;
+      }
+
+      const occupiedBeds = new Set(
+        operationalVisits
+          .filter(
+            (item) =>
+              item.id !== visitId && item.board.status === "in_bed" && Boolean(item.board.bedCode)
+          )
+          .map((item) => item.board.bedCode as string)
+      );
+
+      const activeVisits = operationalVisits.filter(
+        (item) => item.id !== visitId && item.board.status !== "attended"
+      ).length + 1;
+
+      const roomCount = getRequiredRoomCount(activeVisits, Array.from(occupiedBeds));
+      const bed =
+        getNextAvailableBed(occupiedBeds, roomCount, EMERGENCY_BEDS_PER_ROOM) ??
+        getNextAvailableBed(occupiedBeds, roomCount + 1, EMERGENCY_BEDS_PER_ROOM);
+
+      if (!bed) {
+        setFeedback("No hay camas disponibles en este momento.", "error");
+        return;
+      }
+
+      assignVisitToBed(visitId, bed.bedCode);
+      setFeedback(
+        `${visita.paciente?.nombre ?? "Paciente"} asignado a ${bed.bedCode}.`,
+        "success"
+      );
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "No se pudo asignar la cama.", "error");
     }
-    const formatTime = (minutes: number) => {
-      const hours = Math.floor(minutes / 60);
-      const mins = minutes % 60;
-      return `${hours.toString().padStart(2, "0")}:${mins
-        .toString()
-        .padStart(2, "0")}`;
-    };
-    setTimeRange([formatTime(values[0]), formatTime(values[1])]);
-  };
+  }
 
-  const handleStatusChange = (event: any) => {
-    setSelectedStatus(event.target.value);
-  };
+  function sendToWaiting(visita: EmergencyVisit) {
+    try {
+      const visitId = ensureVisitId(visita);
+      releaseVisitBed(visitId);
+      setFeedback(
+        `${visita.paciente?.nombre ?? "Paciente"} regresó a lista de espera.`,
+        "success"
+      );
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "No se pudo liberar la cama.", "error");
+    }
+  }
 
-  const calculateWaitingTime = (arrivalTime: string) => {
-    const [hours, minutes] = arrivalTime.split(/[: ]/).map(Number);
-    const isPM = arrivalTime.includes("PM");
-    const arrivalDate = new Date();
-    arrivalDate.setHours(isPM && hours !== 12 ? hours + 12 : hours % 12, minutes, 0);
+  function markAttended(visita: EmergencyVisit) {
+    try {
+      const visitId = ensureVisitId(visita);
+      markVisitAttended(visitId);
+      setFeedback(`${visita.paciente?.nombre ?? "Paciente"} marcado como atendido.`, "success");
+    } catch (error) {
+      setFeedback(
+        error instanceof Error ? error.message : "No se pudo marcar como atendido.",
+        "error"
+      );
+    }
+  }
 
-    const diffInMs = currentTime.getTime() - arrivalDate.getTime();
-    const diffInMinutes = Math.floor(diffInMs / 60000);
-    const diffHours = Math.floor(diffInMinutes / 60);
-    const diffMinutes = diffInMinutes % 60;
+  function reopenVisit(visita: EmergencyVisit) {
+    try {
+      const visitId = ensureVisitId(visita);
+      reopenEmergencyVisit(visitId);
+      setFeedback(`${visita.paciente?.nombre ?? "Paciente"} reabierto en espera.`, "success");
+    } catch (error) {
+      setFeedback(
+        error instanceof Error ? error.message : "No se pudo reabrir el caso.",
+        "error"
+      );
+    }
+  }
 
-    return `${diffHours}h ${diffMinutes}m`;
-  };
-
-  const filteredAndPaginatedPatients = apiPatients
-    .filter(
-      (patient: PatientData) =>
-        (!selectedStatus || patient.status === selectedStatus) &&
-        (!selectedSpecialty || patient.specialty === selectedSpecialty) &&
-        Number(patient.age) >= ageRange[0] &&
-        Number(patient.age) <= ageRange[1] &&
-        patient.time >= timeRange[0] &&
-        patient.time <= timeRange[1]
-    )
-    .slice((currentPage - 1) * patientsPerPage, currentPage * patientsPerPage);
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="flex items-center justify-center">
+          <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-blue-500" />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-gray-800">
-
-    
-      {/* Apartado de explicación de colores y reloj */}
-      <div className="p-4 flex justify-between gap-6">
-        {/* Reloj */}
-        <div className="flex items-center justify-center">
-          <h2 className="text-4xl font-bold text-gray-800 dark:text-white">
-            {currentTime.toLocaleTimeString()}
-          </h2>
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-5 shadow-sm">
+          <p className="text-sm font-medium text-amber-700">Lista de espera</p>
+          <p className="mt-2 text-3xl font-bold text-amber-800">{stats.waiting}</p>
         </div>
-
-        {/* Buscador */}
-        <div className="p-4">
-          <input
-            type="text"
-            placeholder="Buscar por cédula"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="px-4 py-2 border rounded-lg w-full lg:w-64 text-gray-800 dark:text-white dark:bg-gray-700 dark:border-gray-600"
-          />
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5 shadow-sm">
+          <p className="text-sm font-medium text-blue-700">Pacientes en cama</p>
+          <p className="mt-2 text-3xl font-bold text-blue-800">{stats.inBed}</p>
         </div>
-        <button
-        onClick={toggleCollapse}
-        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-      >
-        Filtros
-      </button>
-      </div>
-
-      {/* Filtros */}
-     
-    
-
-      <Collapse isOpened={isCollapseOpen}>
-        <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-        <div className=" flex gap-4">
-        <div className="flex">
-          <div  className="p-3 bg-gray-800 rounded-lg m-5">
-          <h3 className="text-gray-200">Filtrar por estatus</h3>
-          <select
-            value={selectedStatus}
-            onChange={handleStatusChange}
-            className="px-4 py-2 border rounded-lg w-full lg:w-64 text-gray-800 dark:text-white dark:bg-gray-700 dark:border-gray-600"
-          >
-            <option value="">Todos</option>
-            <option value="Rojo">Rojo</option>
-            <option value="Naranja">Naranja</option>
-            <option value="Amarillo">Amarillo</option>
-            <option value="Verde">Verde</option>
-            <option value="Azul">Azul</option>
-          </select>
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
+          <p className="text-sm font-medium text-emerald-700">Atendidos</p>
+          <p className="mt-2 text-3xl font-bold text-emerald-800">{stats.attended}</p>
         </div>
-        <div className="p-3 bg-gray-800 rounded-lg m-5">
-          <h3 className="text-gray-200">Filtrar por especialidad</h3>
-          <select
-            value={selectedSpecialty}
-            onChange={handleSpecialtyChange}
-            className="px-4 py-2 border rounded-lg w-full lg:w-64 text-gray-800 dark:text-white dark:bg-gray-700 dark:border-gray-600"
-          >
-            <option value="">Todas</option>
-            <option value="Cardiología">Cardiología</option>
-            <option value="Pediatría">Pediatría</option>
-            <option value="Traumatología">Traumatología</option>
-            <option value="Dermatología">Dermatología</option>
-            <option value="Neurología">Neurología</option>
-            <option value="Oncología">Oncología</option>
-            <option value="Ginecología">Ginecología</option>
-            <option value="Urología">Urología</option>
-            <option value="Geriatría">Geriatría</option>
-          </select>
+        <div className="rounded-2xl border border-red-100 bg-red-50 p-5 shadow-sm">
+          <p className="text-sm font-medium text-red-700">Críticos activos</p>
+          <p className="mt-2 text-3xl font-bold text-red-800">{stats.critical}</p>
         </div>
       </div>
-        </div>
-       <div className="p-3 bg-gray-800 rounded-lg m-2">
-          <h3 className="text-gray-200 text-sm mb-2">Filtrar por rango de edad</h3>
-          <Slider
-            className="w-min"
-            range
-            min={0}
-            max={120}
-            defaultValue={[0, 100]}
-            onChange={handleAgeChange}
-          />
-         <div>
-         <div className="mt-2 text-gray-700 dark:text-white">
-            {ageRange[0]} - {ageRange[1]}
-          </div>
-         </div>
-        </div>
-        <div className="p-3 bg-gray-800 rounded-lg mx-2">
-          <h3 className=" text-gray-200" >Filtrar por rango de hora</h3>
 
-          <Slider
-            range
-            min={0}
-            max={1440}
-            step={15}
-            defaultValue={[0, 1440]}
-            onChange={(values) => handleTimeChange(values)}
-          />
-          <div className="mt-2 text-gray-700 dark:text-white">
-            {timeRange[0]} - {timeRange[1]}
-          </div>
-          </div>
-
-        </div>
-      </Collapse>
-
-      {/* Tabla */}
-      <div className="max-w-full overflow-x-auto">
-        <div className="min-w-[1000px]">
-          <Table>
-            {/* Encabezado de la tabla */}
-            <TableHeader className="border-b border-gray-100 dark:border-gray-700">
-              <TableRow>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 font-medium text-xl text-gray-500 text-start text-theme-xs dark:text-gray-100"
-                >
-                  Paciente
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 font-medium text-xl text-gray-500 text-start text-theme-xs dark:text-gray-100"
-                >
-                  Cédula
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 font-medium text-xl text-gray-500 text-start text-theme-xs dark:text-gray-100"
-                >
-                  Edad
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 font-medium text-xl text-gray-500 text-start text-theme-xs dark:text-gray-100"
-                >
-                  Tiempo de Espera
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 font-medium text-xl text-gray-500 text-start text-theme-xs dark:text-gray-100"
-                >
-                  Doctor y Especialidad
-                </TableCell>
-                <TableCell
-                  isHeader
-                  className="px-5 py-3 font-medium text-xl text-gray-500 text-start text-theme-xs dark:text-gray-100"
-                >
-                  Informe
-                </TableCell>
-              </TableRow>
-            </TableHeader>
-
-            {/* Cuerpo de la tabla */}
-            <TableBody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {filteredAndPaginatedPatients.map((patient) => {
-                return (
-                <TableRow
-                  key={patient.id}
-                  className={`${getRowColor(
-                    patient.status,
-                    true // Forzar modo oscuro para la tabla
-                  )}`}
-                >
-                  <TableCell className="px-5 py-4 text-start text-gray-800 dark:text-white">
-                    {patient.name}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-start text-gray-800 dark:text-white">
-                    {patient.idNumber}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-start text-gray-800 dark:text-white">
-                    {patient.age}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-start text-gray-800 dark:text-white">
-                    <div>
-                      <span className="block text-lg font-bold text-white-500">
-                        {calculateWaitingTime(patient.time)}
-                      </span>
-                      <span className="block text-sm text-gray-500 dark:text-gray-400">
-                        Hora de llegada: {patient.time}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-start text-gray-800 dark:text-white">
-                    <div>
-                      <span className="block text-base font-bold">
-                        {patient.specialty}
-                      </span>
-                      <span className="block text-sm">{patient.doctor}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-5 py-4 text-start">
-                    <button
-                      onClick={() => openModal(patient)}
-                      className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600"
-                    >
-                      Ver Informe
-                    </button>
-                  </TableCell>
-                </TableRow>
-              );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-     <div className="m-5">
-      {/* Paginación */}
-      <Pagination 
-        currentPage={currentPage}
-        totalPages={Math.ceil(filteredPatients.length / patientsPerPage)}
-        onPageChange={handlePageChange}
-      />
-      </div>
-       {/* Modal */}
-       {isModalOpen && selectedPatient && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <h3 className="text-lg font-medium text-gray-800">Informe de Diagnóstico</h3>
-            <div className="mt-2 text-gray-600">
-              <p>Paciente: {selectedPatient.name}</p>
-              <p>Diagnóstico: {selectedDiagnostic || 'No disponible'}</p>
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-6 py-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-900">Dashboard de Emergencia</h2>
+              <p className="text-sm text-slate-500">
+                Cola operativa con lista de espera, camas y egreso de pacientes atendidos.
+              </p>
             </div>
-            <div className="items-center px-4 py-3">
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <input
+                type="text"
+                placeholder="Buscar por nombre, cédula o prediagnóstico"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="">Todos los triajes</option>
+                <option value="Rojo">Rojo</option>
+                <option value="Naranja">Naranja</option>
+                <option value="Amarillo">Amarillo</option>
+                <option value="Verde">Verde</option>
+                <option value="Azul">Azul</option>
+              </select>
+
+              <select
+                value={selectedSpecialty}
+                onChange={(e) => setSelectedSpecialty(e.target.value)}
+                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="">Todas las especialidades</option>
+                {specialties.map((specialty) => (
+                  <option key={specialty} value={specialty}>
+                    {specialty}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={selectedQueueStatus}
+                onChange={(e) => setSelectedQueueStatus(e.target.value as QueueFilter)}
+                className="rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="">Todos los estados</option>
+                <option value="waiting">En espera</option>
+                <option value="in_bed">En cama</option>
+                <option value="attended">Atendidos</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center gap-3">
+            <input
+              id="show-attended"
+              type="checkbox"
+              checked={showAttended}
+              onChange={(event) => setShowAttended(event.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="show-attended" className="text-sm text-slate-600">
+              Mostrar pacientes atendidos en la tabla
+            </label>
+          </div>
+        </div>
+
+        {(actionError || actionMessage) && (
+          <div className="px-6 pt-5">
+            {actionError ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {actionError}
+              </div>
+            ) : null}
+            {actionMessage ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {actionMessage}
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Paciente</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Triaje</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Estado</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Cama</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Especialidad</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Ingreso</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {paginatedVisits.map((visita) => (
+                <tr key={visita.id} className="hover:bg-slate-50">
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-semibold text-slate-900">
+                      {visita.paciente?.nombre ?? "Sin paciente"}
+                    </div>
+                    <div className="text-sm text-slate-500">
+                      {visita.paciente?.cedula ?? "Sin cédula"}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${getTriageClasses(visita.evaluacion_triaje)}`}>
+                      {visita.evaluacion_triaje}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${QUEUE_CLASSES[visita.board.status]}`}>
+                      {QUEUE_LABELS[visita.board.status]}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-700">
+                    {visita.board.bedCode ?? "Sin asignar"}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-700">{visita.especialidad}</td>
+                  <td className="px-6 py-4 text-sm text-slate-500">{formatDate(visita.hora_entrada)}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap gap-2">
+                      {visita.board.status === "in_bed" ? (
+                        <button
+                          onClick={() => sendToWaiting(visita)}
+                          className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
+                        >
+                          Enviar a espera
+                        </button>
+                      ) : visita.board.status !== "attended" ? (
+                        <button
+                          onClick={() => assignBed(visita)}
+                          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                        >
+                          Asignar cama
+                        </button>
+                      ) : null}
+
+                      {visita.board.status === "attended" ? (
+                        <button
+                          onClick={() => reopenVisit(visita)}
+                          className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
+                        >
+                          Reabrir
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => markAttended(visita)}
+                          className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                        >
+                          Marcar atendido
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => setSelectedVisit(visita)}
+                        className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+                      >
+                        Ver detalle
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {filteredVisits.length === 0 && (
+          <div className="px-6 py-12 text-center text-sm text-slate-500">
+            No hay visitas que coincidan con los filtros actuales.
+          </div>
+        )}
+
+        <div className="px-6 py-5">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={Math.max(1, Math.ceil(filteredVisits.length / PAGE_SIZE))}
+            onPageChange={setCurrentPage}
+          />
+        </div>
+      </div>
+
+      {selectedVisit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-semibold text-slate-900">
+                  {selectedVisit.paciente?.nombre ?? "Paciente sin nombre"}
+                </h3>
+                <p className="text-sm text-slate-500">
+                  {selectedVisit.paciente?.cedula ?? "Sin cédula"} · {selectedVisit.especialidad}
+                </p>
+              </div>
               <button
-                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-700 mr-2"
-                onClick={closeModal}
+                onClick={() => setSelectedVisit(null)}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
               >
                 Cerrar
               </button>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado actual</p>
+                <p className="mt-2 text-sm text-slate-700">
+                  {QUEUE_LABELS[selectedVisit.board.status]}
+                  {selectedVisit.board.bedCode ? ` · ${selectedVisit.board.bedCode}` : ""}
+                </p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Prediagnóstico</p>
+                <p className="mt-2 text-sm text-slate-700">{selectedVisit.prediagnostico}</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Resultado rPPG</p>
+                <p className="mt-2 text-sm text-slate-700">
+                  {selectedVisit.diagnostico?.resultado_rppg ?? "Sin resultado registrado"}
+                </p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-4 md:col-span-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Diagnóstico</p>
+                <p className="mt-2 text-sm text-slate-700">
+                  {selectedVisit.diagnostico?.diagnostico ?? "Sin diagnóstico final"}
+                </p>
+                <p className="mt-3 text-sm text-slate-500">
+                  {selectedVisit.diagnostico?.informe_prediagnostico ?? "No hay informe disponible."}
+                </p>
+              </div>
             </div>
           </div>
         </div>

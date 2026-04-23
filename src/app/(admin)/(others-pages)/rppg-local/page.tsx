@@ -14,24 +14,32 @@ const RPPGNativePage = () => {
 
   const startRecording = async () => {
     try {
+      console.log('[rPPG Local] Requesting camera permissions...');
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 640, height: 480 },
         audio: false
       });
+      console.log('[rPPG Local] Camera permissions granted, stream obtained:', stream.id);
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
+        console.log('[rPPG Local] Video element connected to stream');
       }
 
       // Start recording for 30 seconds max (enough for rPPG analysis)
       setIsRecording(true);
+      console.log('[rPPG Local] Recording started');
 
       setTimeout(() => {
         stopRecording();
       }, 30000);
     } catch (error) {
-      console.error('Error accessing camera:', error);
+      console.error('[rPPG Local] Error accessing camera:', error);
+      if (error instanceof Error) {
+        console.error('[rPPG Local] Error name:', error.name);
+        console.error('[rPPG Local] Error message:', error.message);
+      }
       alert('Error accessing camera. Please allow camera permissions.');
     }
   };

@@ -6,8 +6,17 @@ import Link from "next/link";
 
 const API_URL = "http://localhost:8000";
 
+type RegistroConsultaForm = {
+  nombre: string;
+  cedula: string;
+  edad: string;
+  especialidad: string;
+  prediagnostico: string;
+  evaluacion_triaje: string;
+};
+
 export default function ConsultasPage() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<RegistroConsultaForm>({
     nombre: "",
     cedula: "",
     edad: "",
@@ -22,15 +31,17 @@ export default function ConsultasPage() {
   const [pacienteId, setPacienteId] = useState(null);
   const [historiaId, setHistoriaId] = useState(null);
 
-  const handleChange = (e) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
     setFormData({
       ...formData,
-      [name]: name === "edad" ? (value ? parseInt(value) : "") : value,
+      [name]: value,
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError("");
@@ -113,7 +124,7 @@ export default function ConsultasPage() {
       });
     } catch (err) {
       console.error("Error:", err);
-      setError(err.message || "Error al procesar el registro");
+      setError(err instanceof Error ? err.message : "Error al procesar el registro");
     } finally {
       setLoading(false);
     }
@@ -264,7 +275,7 @@ export default function ConsultasPage() {
                       name="prediagnostico"
                       value={formData.prediagnostico}
                       onChange={handleChange}
-                      rows="3"
+                      rows={3}
                       className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-700 focus:border-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                     ></textarea>
                   </div>

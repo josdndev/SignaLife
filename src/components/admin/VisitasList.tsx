@@ -1,54 +1,45 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getVisitas, type Visita } from '@/functions/api';
 import { useLanguage } from '@/context/LanguageContext';
+import {
+  formatDate,
+  getClinicalData,
+  getTriageClasses,
+  type VisitaEnriched,
+} from '@/lib/clinicalData';
 
 const VisitasList = () => {
   const { t } = useLanguage();
-  const [visitas, setVisitas] = useState<Visita[]>([]);
+  const [visitas, setVisitas] = useState<VisitaEnriched[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState(''); // Estado para el término de búsqueda
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
+    const cargarVisitas = async () => {
+      try {
+        setLoading(true);
+        const data = await getClinicalData();
+        setVisitas(data.visitasEnriched);
+        setError('');
+      } catch (err) {
+        setError(t('visitas.error'));
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     cargarVisitas();
-  }, []);
+  }, [t]);
 
-  const cargarVisitas = async () => {
-    try {
-      setLoading(true);
-      const data = await getVisitas();
-      setVisitas(data);
-      setError('');
-    } catch (err) {
-      setError(t('visitas.error'));
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Filtra la lista de visitas basándose en el término de búsqueda
   const filteredVisitas = visitas.filter(visita =>
     visita.historia_id.toString().includes(searchTerm.toLowerCase()) ||
-    visita.evaluacion_triaje.toLowerCase().includes(searchTerm.toLowerCase())
+    visita.evaluacion_triaje.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    visita.paciente?.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    visita.paciente?.cedula?.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const getEstadoColor = (evaluacion: string) => {
-    switch (evaluacion.toLowerCase()) {
-      case 'crítico':
-        return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400';
-      case 'urgente':
-        return 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400';
-      case 'estable':
-        return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400';
-      case 'leve':
-        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400';
-      default:
-        return 'bg-gray-100 dark:bg-gray-900/30 text-gray-800 dark:text-gray-400';
-    }
-  };
 
   if (loading) {
     return (
@@ -110,6 +101,9 @@ const VisitasList = () => {
                 {t('visitas.historyId')}
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                Paciente
+              </th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                 {t('visitas.entryTime')}
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
@@ -143,12 +137,20 @@ const VisitasList = () => {
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900 dark:text-gray-100">
-                    {new Date(visita.hora_entrada).toLocaleString('es-ES')}
+                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {visita.paciente?.nombre ?? 'Sin paciente'}
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    {visita.paciente?.cedula ?? 'Sin cédula'}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getEstadoColor(visita.evaluacion_triaje)}`}>
+                  <div className="text-sm text-gray-900 dark:text-gray-100">
+                    {formatDate(visita.hora_entrada)}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 ${getTriageClasses(visita.evaluacion_triaje)}`}>
                     {visita.evaluacion_triaje}
                   </span>
                 </td>

@@ -3,11 +3,20 @@
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import React, { useState } from "react";
 import Link from "next/link";
+import { createHistoria, createPaciente, createVisita } from "@/functions/api";
+import { registerEmergencyVisit } from "@/lib/emergencyBoard";
 
-const API_URL = "http://localhost:8000";
+type RegistroEmergenciaForm = {
+  nombre: string;
+  cedula: string;
+  edad: string;
+  especialidad: string;
+  prediagnostico: string;
+  evaluacion_triaje: string;
+};
 
 export default function EmergenciaPage() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<RegistroEmergenciaForm>({
     nombre: "",
     cedula: "",
     edad: "",
@@ -19,89 +28,66 @@ export default function EmergenciaPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [pacienteId, setPacienteId] = useState(null);
-  const [historiaId, setHistoriaId] = useState(null);
+  const [pacienteId, setPacienteId] = useState<number | null>(null);
+  const [historiaId, setHistoriaId] = useState<number | null>(null);
 
-  const handleChange = (e) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
     setFormData({
       ...formData,
-      [name]: name === "edad" ? (value ? parseInt(value) : "") : value,
+      [name]: value,
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     setSuccess("");
 
     try {
-      // 1. Registrar paciente
-      const pacienteResponse = await fetch(`${API_URL}/pacientes/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          nombre: formData.nombre,
-          cedula: formData.cedula,
-          edad: parseInt(formData.edad),
-        }),
-      });
-
-      if (!pacienteResponse.ok) {
-        const errorData = await pacienteResponse.json();
-        throw new Error(errorData.detail || "Error al registrar paciente");
+      const edad = Number.parseInt(formData.edad, 10);
+      if (Number.isNaN(edad)) {
+        throw new Error("La edad no es válida.");
       }
 
-      const pacienteData = await pacienteResponse.json();
-      setPacienteId(pacienteData.paciente.id);
-
-      // 2. Crear historia clínica
-      const fecha = new Date().toISOString().split("T")[0];
-      const historiaResponse = await fetch(`${API_URL}/historias/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          paciente_id: pacienteData.paciente.id,
-          fecha: fecha,
-        }),
+      const paciente = await createPaciente({
+        nombre: formData.nombre.trim(),
+        cedula: formData.cedula.trim(),
+        edad,
       });
+      if (typeof paciente.id !== "number") {
+        throw new Error("La API no devolvió el ID del paciente.");
+      }
+      setPacienteId(paciente.id);
 
-      if (!historiaResponse.ok) {
-        const errorData = await historiaResponse.json();
-        throw new Error(errorData.detail || "Error al crear historia clínica");
+      const historia = await createHistoria({
+        paciente_id: paciente.id,
+        fecha: new Date().toISOString().slice(0, 10),
+      });
+      if (typeof historia.id !== "number") {
+        throw new Error("La API no devolvió el ID de la historia clínica.");
+      }
+      setHistoriaId(historia.id);
+
+      const visita = await createVisita({
+        historia_id: historia.id,
+        hora_entrada: new Date().toISOString(),
+        evaluacion_triaje: formData.evaluacion_triaje,
+        prediagnostico:
+          formData.prediagnostico.trim() || "Emergencia - Pendiente de evaluación",
+        especialidad: formData.especialidad,
+        numero_visita: 1,
+      });
+      if (typeof visita.id !== "number") {
+        throw new Error("La API no devolvió el ID de la visita.");
       }
 
-      const historiaData = await historiaResponse.json();
-      setHistoriaId(historiaData.historia.id);
+      registerEmergencyVisit(visita.id);
 
-      // 3. Registrar visita
-      const horaEntrada = new Date().toISOString();
-      const visitaResponse = await fetch(`${API_URL}/visitas/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          historia_id: historiaData.historia.id,
-          hora_entrada: horaEntrada,
-          evaluacion_triaje: formData.evaluacion_triaje,
-          prediagnostico: formData.prediagnostico || "Emergencia - Pendiente de evaluación",
-          especialidad: formData.especialidad,
-          numero_visita: 1,
-        }),
-      });
-
-      if (!visitaResponse.ok) {
-        const errorData = await visitaResponse.json();
-        throw new Error(errorData.detail || "Error al registrar visita");
-      }
-
-      setSuccess("Paciente registrado exitosamente para atención de emergencia");
+      setSuccess("Paciente registrado y enviado a la lista de espera de emergencia.");
       // Limpiar formulario
       setFormData({
         nombre: "",
@@ -113,7 +99,7 @@ export default function EmergenciaPage() {
       });
     } catch (err) {
       console.error("Error:", err);
-      setError(err.message || "Error al procesar el registro");
+      setError(err instanceof Error ? err.message : "Error al procesar el registro");
     } finally {
       setLoading(false);
     }
@@ -287,7 +273,7 @@ export default function EmergenciaPage() {
                       value={formData.prediagnostico}
                       onChange={handleChange}
                       required
-                      rows="3"
+                      rows={3}
                       className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-700 focus:border-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                     ></textarea>
                   </div>
